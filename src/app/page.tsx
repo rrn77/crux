@@ -495,11 +495,11 @@ export default function HomePage() {
                   )}
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-chalk-200 dark:border-graphite-800">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-chalk-200 dark:border-graphite-800">
                   <span className="text-[11px] font-medium text-graphite-500">
                     {tpl.blocks[0] ? formatBlockSummary(tpl.blocks[0]) : '1 bloque'}
                   </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 ml-auto">
                     <Link href={`/workouts/new?templateId=${tpl.id}&date=${todayIso}`}>
                       <Button variant="outline" size="sm">
                         Planificar

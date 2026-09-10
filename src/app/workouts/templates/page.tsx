@@ -136,26 +136,28 @@ export default function TemplatesPage() {
                 </div>
 
                 {/* Acciones */}
-                <div className="flex items-center justify-between pt-2 border-t border-chalk-200 dark:border-graphite-800">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-chalk-200 dark:border-graphite-800">
                   <button
                     type="button"
                     onClick={() => setDeletingTemplate({ id: tpl.id, title: tpl.title })}
-                    className="text-xs font-bold text-red-600 hover:text-red-700 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex items-center gap-1"
+                    title="Eliminar plantilla"
+                    aria-label="Eliminar plantilla"
+                    className="text-xs font-bold text-red-600 hover:text-red-700 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex items-center gap-1 shrink-0"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Eliminar
+                    <Trash2 className="w-4 h-4" />
+                    <span className="hidden sm:inline">Eliminar</span>
                   </button>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5 shrink-0 ml-auto">
                     <Link href={`/workouts/templates/new?id=${tpl.id}`}>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" className="text-xs px-2.5 py-1">
                         <Edit2 className="w-3.5 h-3.5 mr-1" />
                         Editar
                       </Button>
                     </Link>
 
                     <Link href={`/workouts/new?templateId=${tpl.id}`}>
-                      <Button variant="outline" size="sm" title="Usar para planificar una sesión">
+                      <Button variant="outline" size="sm" className="text-xs px-2.5 py-1" title="Usar para planificar una sesión">
                         <CalendarPlus className="w-3.5 h-3.5 mr-1 text-terracotta" />
                         Planificar
                       </Button>
@@ -164,6 +166,7 @@ export default function TemplatesPage() {
                     <Button
                       variant="primary"
                       size="sm"
+                      className="text-xs px-3 py-1"
                       onClick={() => handleStartTemplate(tpl)}
                     >
                       <Play className="w-3.5 h-3.5 mr-1 fill-current" />
