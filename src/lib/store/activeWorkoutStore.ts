@@ -30,7 +30,6 @@ interface ActiveWorkoutStore {
   startWorkout: (
     title: string,
     blocks: WorkoutBlock[],
-    templateId?: string,
     existingSessionId?: string,
     scheduledDate?: string
   ) => void;
@@ -75,7 +74,7 @@ export const useActiveWorkoutStore = create<ActiveWorkoutStore>()(
       totalSessionElapsedSeconds: 0,
       lastTickTimestamp: null,
 
-      startWorkout: (title, blocks, templateId, existingSessionId, scheduledDate) => {
+      startWorkout: (title, blocks, existingSessionId, scheduledDate) => {
         if (!blocks || blocks.length === 0) return;
 
         const now = new Date().toISOString();
@@ -101,7 +100,6 @@ export const useActiveWorkoutStore = create<ActiveWorkoutStore>()(
         const newSession: WorkoutSession = {
           id: sessionId,
           title: title || 'Sesión de Entrenamiento',
-          templateId,
           scheduledDate: scheduledDate || new Date().toISOString().split('T')[0],
           startedAt: now,
           durationSeconds: 0,

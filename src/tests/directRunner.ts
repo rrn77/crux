@@ -284,25 +284,6 @@ async function main() {
     assert.strictEqual(todaySession?.id, 's-pending', 'Debe priorizar la sesión pendiente/programada');
   });
 
-  await test('workoutStore: deleteTemplate elimina correctamente la plantilla por ID', async () => {
-    useWorkoutStore.getState().clearWorkoutStore();
-
-    const tpl = await useWorkoutStore.getState().addTemplate({
-      title: 'Suspensiones 7/3 Intermitentes',
-      type: 'intervals',
-    });
-
-    assert.strictEqual(useWorkoutStore.getState().templates.length, 1);
-    assert.strictEqual(useWorkoutStore.getState().templates[0].id, tpl.id);
-
-    // Validar formato UUID generado
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tpl.id);
-    assert.strictEqual(isUuid, true, 'El ID de la plantilla debe ser un UUID válido');
-
-    await useWorkoutStore.getState().deleteTemplate(tpl.id);
-    assert.strictEqual(useWorkoutStore.getState().templates.length, 0, 'La plantilla debe haber sido eliminada');
-  });
-
   await test('workoutStore: deleteSession elimina correctamente la sesión por ID', async () => {
     useWorkoutStore.getState().clearWorkoutStore();
 

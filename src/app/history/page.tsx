@@ -258,7 +258,6 @@ export default function HistoryPage() {
     startWorkout(
       session.title,
       session.blocks,
-      session.templateId,
       session.id,
       session.scheduledDate
     );

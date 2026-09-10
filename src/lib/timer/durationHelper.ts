@@ -2,8 +2,8 @@ import { Timer, Repeat, Layers, Target, FileText, type LucideIcon } from 'lucide
 import type { WorkoutBlock, BlockType } from '../types/index';
 
 /**
- * Configuración compartida de los 5 tipos de ejercicio (identidad de la plantilla).
- * Usada por el selector de tipo en plantillas/ejercicios sueltos y por las tarjetas de bloque.
+ * Configuración compartida de los 5 tipos de ejercicio.
+ * Usada por el selector de tipo al crear un ejercicio y por las tarjetas de bloque.
  */
 export interface BlockTypeConfigEntry {
   label: string;

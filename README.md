@@ -6,7 +6,7 @@
 
 ## 🌟 Principio de Producto
 
-CRUX **no impone un catálogo cerrado de ejercicios**. Puedes crear cualquier bloque de entrenamiento con un título libre y configurar su estructura exacta:
+CRUX **no impone un catálogo cerrado de ejercicios ni plantillas reutilizables**. Cada ejercicio se define directamente dentro de la sesión donde se va a entrenar, con un título libre y su estructura exacta:
 - **Intervalos:** Series + Duración de trabajo + Descanso (Ej: *ULAC: 4 series × 3:00 / descanso 1:00*, *Suspensiones 20mm: 6 series × 7s / descanso 3:00*).
 - **Problemas / Bloques:** Número de problemas, movimientos por bloque, intentos por problema y descanso (Ej: *BLOQUES CORTOS: 4 bloques de 5 movs, 4 intentos c/u, 1:30 descanso*).
 - **Repeticiones:** Series + Repeticiones + Descanso (Ej: *Core: 3 series × 12 reps, 1:00 descanso*).
@@ -30,7 +30,7 @@ CRUX **no impone un catálogo cerrado de ejercicios**. Puedes crear cualquier bl
 - **Estilos:** Tailwind CSS con paleta deportiva de alto contraste (Terracota, Verde Musgo, Crema/Piedra, Grafito).
 - **Temporizador Inteligente:** Basado en timestamps (`Date.now()`) con máquina de estados (`idle` → `work` → `rest` → `blockCompleted` → `sessionCompleted`) resistente al bloqueo de pantalla y segundo plano.
 - **Audio y Háptica:** Síntesis Web Audio API (beeps 3-2-1 y acordes polifónicos) + API de vibración.
-- **Estado:** Zustand como caché en memoria del cliente; toda lectura y escritura de plantillas, sesiones y tests se hace directamente contra Supabase (sin persistencia local de datos). El temporizador de la sesión activa sigue corriendo en el dispositivo para resistir bloqueos de pantalla, y sincroniza cada bloque completado con Supabase.
+- **Estado:** Zustand como caché en memoria del cliente; toda lectura y escritura de sesiones y tests se hace directamente contra Supabase (sin persistencia local de datos). El temporizador de la sesión activa sigue corriendo en el dispositivo para resistir bloqueos de pantalla, y sincroniza cada bloque completado con Supabase.
 - **Base de Datos & Auth:** Supabase (obligatorio) con esquema SQL completo, Row Level Security (RLS) y autenticación por email/contraseña.
 - **Visualización de Datos:** Recharts para curvas de evolución de tests y volumen semanal.
 - **Iconografía:** Lucide React.
@@ -52,8 +52,7 @@ crux/
 │   │   ├── globals.css            # Paleta de colores y variables
 │   │   ├── page.tsx               # Pantalla Inicio / Hoy
 │   │   ├── workouts/
-│   │   │   ├── new/page.tsx       # Constructor de sesiones y plantillas
-│   │   │   └── templates/page.tsx # Catálogo de plantillas
+│   │   │   └── new/page.tsx       # Constructor de sesiones (ejercicios a medida por sesión)
 │   │   ├── workout/
 │   │   │   └── active/page.tsx    # Entrenamiento activo con temporizador gigante
 │   │   ├── history/
@@ -68,7 +67,7 @@ crux/
 │   ├── components/
 │   │   ├── layout/                # Header, Navbar, ActiveWorkoutBanner, PwaRegister
 │   │   ├── timer/                 # TimerDisplay, TimerControls, SessionCompleteModal
-│   │   ├── workout/               # BlockFormModal, BlockCard, TemplatePickerModal
+│   │   ├── workout/                # BlockFormInline, BlockCard
 │   │   ├── progress/              # ProgressCharts (Recharts)
 │   │   └── ui/                    # Button, Input, Modal, Badge, Card
 │   ├── lib/
@@ -79,20 +78,15 @@ crux/
 │   │   │   └── durationHelper.ts  # Cálculo dinámico de duraciones
 │   │   ├── store/
 │   │   │   ├── activeWorkoutStore.ts # Sesión activa persistida en tiempo real
-│   │   │   ├── workoutStore.ts       # Plantillas e historial
+│   │   │   ├── workoutStore.ts       # Sesiones e historial
 │   │   │   ├── testStore.ts          # Benchmarks y deltas
 │   │   │   └── settingsStore.ts      # Preferencias de usuario
 │   │   ├── supabase/
 │   │   │   └── client.ts          # Cliente Supabase tipado
 │   │   └── types/
 │   │       └── index.ts           # Modelos de datos TypeScript
-│   ├── data/
-│   │   └── defaultTemplates.ts    # Plantillas de ejemplo: ULAC, BLOQUES CORTOS, Suspensiones, Core
 │   └── tests/
-│       ├── directRunner.ts        # Runner de pruebas unitarias
-│       ├── duration.test.ts       # Tests de estimación de duraciones
-│       ├── timerMachine.test.ts   # Tests de transiciones de estados
-│       └── backgroundRecovery.test.ts # Tests de recuperación ante bloqueo
+│       └── directRunner.ts        # Runner de pruebas unitarias (duración, temporizador, tests físicos, sesiones)
 └── supabase/
     └── schema.sql                 # Esquema DDL SQL con RLS para Supabase
 ```
@@ -146,9 +140,7 @@ npm test
 
 ## 🗄️ Esquema de Supabase (SQL)
 
-Si deseas conectar Supabase, ejecuta el contenido de `supabase/schema.sql` en el SQL Editor de tu panel de Supabase. El script crea automáticamente:
-- `workout_templates`
-- `workout_blocks`
+Ejecuta el contenido de `supabase/schema.sql` en el SQL Editor de tu panel de Supabase. El script crea automáticamente:
 - `workout_sessions`
 - `block_logs`
 - `tests`

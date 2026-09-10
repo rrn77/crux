@@ -2,39 +2,33 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import {
   Play,
   Plus,
   Clock,
   Layers,
-  BookOpen,
   ArrowLeft,
   Sparkles,
   Calendar,
   CalendarCheck,
-  ChevronDown,
-  ChevronUp,
   X,
 } from 'lucide-react';
-import { WorkoutBlock, WorkoutTemplate } from '@/lib/types';
-import { useWorkoutStore, getLocalDateIsoString, generateUUID } from '@/lib/store/workoutStore';
+import { WorkoutBlock } from '@/lib/types';
+import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
-import { calculateTotalEstimatedDuration, formatDurationHuman, BLOCK_TYPE_CONFIG } from '@/lib/timer/durationHelper';
+import { calculateTotalEstimatedDuration, formatDurationHuman } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Badge } from '@/components/ui/Badge';
 import { BlockCard } from '@/components/workout/BlockCard';
 import { BlockFormInline } from '@/components/workout/BlockFormInline';
 
 function WorkoutBuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const templateIdParam = searchParams.get('templateId');
   const dateParam = searchParams.get('date');
   const sessionIdParam = searchParams.get('sessionId');
 
-  const { templates, getTemplateById, scheduleSession, getSessionById } = useWorkoutStore();
+  const { scheduleSession, getSessionById } = useWorkoutStore();
   const { startWorkout } = useActiveWorkoutStore();
 
   const [scheduledDate, setScheduledDate] = useState<string>(
@@ -44,10 +38,9 @@ function WorkoutBuilderContent() {
   const [sessionDescription, setSessionDescription] = useState<string>('');
   const [blocks, setBlocks] = useState<WorkoutBlock[]>([]);
 
-  // Estados para formularios inline
+  // Estados para el formulario inline
   const [isInlineFormOpen, setIsInlineFormOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
-  const [isTemplatePanelOpen, setIsTemplatePanelOpen] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
   // Cargar sesión existente si viene en la query URL (?sessionId=xxx)
@@ -61,27 +54,9 @@ function WorkoutBuilderContent() {
           setScheduledDate(existingSession.scheduledDate);
         }
         setBlocks(existingSession.blocks || []);
-        return;
       }
     }
-
-    // Plantilla precargada vía query URL (?templateId=xxx): abrir directamente su prescripción
-    if (templateIdParam) {
-      const tpl = getTemplateById(templateIdParam);
-      if (tpl) {
-        setEditingBlock({
-          id: generateUUID(),
-          templateId: tpl.id,
-          templateTitle: tpl.title,
-          position: 0,
-          title: tpl.title,
-          type: tpl.type,
-          notes: tpl.description,
-        });
-        setIsInlineFormOpen(true);
-      }
-    }
-  }, [sessionIdParam, templateIdParam, getSessionById, getTemplateById]);
+  }, [sessionIdParam, getSessionById]);
 
   // Duración estimada calculada en tiempo real
   const totalEstimatedSec = calculateTotalEstimatedDuration(blocks);
@@ -89,13 +64,11 @@ function WorkoutBuilderContent() {
   const handleStartAddingBlock = () => {
     setEditingBlock(null);
     setIsInlineFormOpen(true);
-    setIsTemplatePanelOpen(false);
   };
 
   const handleEditBlock = (block: WorkoutBlock) => {
     setEditingBlock(block);
     setIsInlineFormOpen(true);
-    setIsTemplatePanelOpen(false);
   };
 
   const handleCancelInlineForm = () => {
@@ -144,7 +117,6 @@ function WorkoutBuilderContent() {
           prev.map((b) => (b.id === editingBlock.id ? { ...savedBlock, position: b.position } : b))
         );
       } else {
-        // Era una plantilla precargada en el formulario
         setBlocks((prev) => [...prev, { ...savedBlock, position: prev.length }]);
       }
     } else {
@@ -154,26 +126,11 @@ function WorkoutBuilderContent() {
     setEditingBlock(null);
   };
 
-  // Al seleccionar una plantilla: abrir el formulario de prescripción (siempre en blanco)
-  const handleSelectTemplate = (template: WorkoutTemplate) => {
-    setEditingBlock({
-      id: generateUUID(),
-      templateId: template.id,
-      templateTitle: template.title,
-      position: blocks.length,
-      title: template.title,
-      type: template.type,
-      notes: template.description,
-    });
-    setIsInlineFormOpen(true);
-    setIsTemplatePanelOpen(false);
-  };
-
   const handleScheduleSession = async () => {
     if (!sessionTitle.trim()) return;
     if (blocks.length === 0) return;
 
-    const session = await scheduleSession({
+    await scheduleSession({
       id: sessionIdParam || undefined,
       title: sessionTitle.trim(),
       notes: sessionDescription.trim() || undefined,
@@ -207,37 +164,21 @@ function WorkoutBuilderContent() {
       logs: [],
     });
 
-    startWorkout(title, blocks, templateIdParam || undefined, session.id, scheduledDate);
+    startWorkout(title, blocks, session.id, scheduledDate);
     router.push('/workout/active');
   };
 
   return (
     <div className="space-y-6 animate-fade-in pb-12">
-      {/* Cabecera con Botón Volver y Plantillas */}
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="flex items-center gap-1.5 text-xs font-bold text-graphite-600 dark:text-graphite-400 hover:text-terracotta transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Volver
-        </button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setIsTemplatePanelOpen(!isTemplatePanelOpen);
-            setIsInlineFormOpen(false);
-          }}
-          className="text-xs font-bold"
-        >
-          <BookOpen className="w-3.5 h-3.5 mr-1 text-moss" />
-          {isTemplatePanelOpen ? 'Cerrar Plantillas' : 'Añadir desde Plantillas'}
-          {isTemplatePanelOpen ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
-        </Button>
-      </div>
+      {/* Cabecera con Botón Volver */}
+      <button
+        type="button"
+        onClick={() => router.back()}
+        className="flex items-center gap-1.5 text-xs font-bold text-graphite-600 dark:text-graphite-400 hover:text-terracotta transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Volver
+      </button>
 
       <div>
         <h1 className="text-2xl font-black tracking-tight text-graphite-950 dark:text-white">
@@ -294,84 +235,6 @@ function WorkoutBuilderContent() {
         </div>
       </div>
 
-      {/* Panel Integrado de Selección de Plantillas con Ajuste Directo de Prescripción */}
-      {isTemplatePanelOpen && (
-        <div className="p-5 bg-moss-50/70 dark:bg-moss-950/30 rounded-3xl border border-moss-200 dark:border-moss-900/50 space-y-3.5 animate-fade-in">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-moss" />
-              <div>
-                <h3 className="font-bold text-sm text-graphite-900 dark:text-white">
-                  Tus Plantillas de Ejercicios ({templates.length})
-                </h3>
-                <p className="text-[11px] text-graphite-500">
-                  Toca una plantilla para prescribir series, descanso y carga antes de añadirla
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsTemplatePanelOpen(false)}
-              className="p-1.5 rounded-xl text-graphite-400 hover:text-graphite-700 hover:bg-white dark:hover:bg-graphite-800 transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {templates.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
-              {templates.map((tpl) => {
-                const typeConfig = BLOCK_TYPE_CONFIG[tpl.type];
-                return (
-                  <div
-                    key={tpl.id}
-                    className="p-3.5 rounded-2xl bg-white dark:bg-graphite-900 border border-moss-200 dark:border-graphite-800 flex flex-col justify-between gap-2.5 shadow-2xs hover:border-moss-400 transition-all"
-                  >
-                    <div>
-                      <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
-                        {tpl.title}
-                      </div>
-                      <Badge variant={typeConfig.variant} size="sm" className="mt-1">
-                        <typeConfig.icon className="w-3 h-3" />
-                        {typeConfig.label}
-                      </Badge>
-                      {tpl.description && (
-                        <p className="text-[11px] text-graphite-400 line-clamp-1 italic mt-1">
-                          {tpl.description}
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-end pt-1 border-t border-chalk-100 dark:border-graphite-800">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleSelectTemplate(tpl)}
-                        className="text-[11px] py-1 px-2.5"
-                      >
-                        Añadir
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="p-4 text-center bg-white dark:bg-graphite-900 rounded-2xl border border-moss-200 dark:border-graphite-800 space-y-2">
-              <p className="text-xs text-graphite-500">
-                No tienes plantillas guardadas aún.
-              </p>
-              <Link href="/workouts/templates/new">
-                <Button variant="outline" size="sm">
-                  <Plus className="w-3.5 h-3.5 mr-1" />
-                  Crear Plantilla
-                </Button>
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Lista de Bloques / Ejercicios de la Sesión */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -381,31 +244,14 @@ function WorkoutBuilderContent() {
               Ejercicios de la Sesión ({blocks.length})
             </h2>
             <p className="text-xs text-graphite-500">
-              Añade ejercicios desde tus plantillas o crea bloques a medida
+              Define cada ejercicio a medida: tipo, series, descanso y carga
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setIsTemplatePanelOpen(!isTemplatePanelOpen);
-                setIsInlineFormOpen(false);
-              }}
-            >
-              <BookOpen className="w-4 h-4 mr-1 text-moss" />
-              Plantillas
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleStartAddingBlock}
-            >
-              <Plus className="w-4 h-4 mr-1 stroke-[2.5]" />
-              Crear Ejercicio
-            </Button>
-          </div>
+          <Button variant="primary" size="sm" onClick={handleStartAddingBlock}>
+            <Plus className="w-4 h-4 mr-1 stroke-[2.5]" />
+            Añadir Ejercicio
+          </Button>
         </div>
 
         {saveSuccessMessage && (
@@ -415,17 +261,13 @@ function WorkoutBuilderContent() {
           </div>
         )}
 
-        {/* Formulario Integrado (Inline) para Crear / Ajustar / Editar Ejercicio */}
+        {/* Formulario Integrado (Inline) para Crear / Editar Ejercicio */}
         {isInlineFormOpen && (
           <div className="p-5 bg-white dark:bg-graphite-900 rounded-3xl border-2 border-terracotta/60 dark:border-terracotta/50 shadow-md space-y-3 animate-fade-in">
             <div className="flex items-center justify-between border-b border-chalk-200 dark:border-graphite-800 pb-2.5">
               <h3 className="font-bold text-sm text-graphite-900 dark:text-white flex items-center gap-2">
                 <Layers className="w-4 h-4 text-terracotta" />
-                {editingBlock && blocks.some((b) => b.id === editingBlock.id)
-                  ? `Editando Ejercicio: ${editingBlock.title}`
-                  : editingBlock
-                  ? `Configurar Prescripción: ${editingBlock.title}`
-                  : 'Nuevo Ejercicio para esta Sesión'}
+                {editingBlock ? `Editando Ejercicio: ${editingBlock.title}` : 'Nuevo Ejercicio para esta Sesión'}
               </h3>
               <button
                 type="button"
@@ -440,11 +282,7 @@ function WorkoutBuilderContent() {
               initialBlock={editingBlock}
               onSave={handleSaveBlock}
               onCancel={handleCancelInlineForm}
-              submitLabel={
-                editingBlock && blocks.some((b) => b.id === editingBlock.id)
-                  ? 'Actualizar Ejercicio'
-                  : 'Añadir a la Sesión'
-              }
+              submitLabel={editingBlock ? 'Actualizar Ejercicio' : 'Añadir a la Sesión'}
             />
           </div>
         )}
@@ -470,20 +308,10 @@ function WorkoutBuilderContent() {
               <p className="text-xs text-graphite-500">
                 No has añadido ningún ejercicio para este día.
               </p>
-              <div className="flex items-center justify-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsTemplatePanelOpen(true)}
-                >
-                  <BookOpen className="w-4 h-4 mr-1.5 text-moss" />
-                  Añadir desde Plantillas
-                </Button>
-                <Button variant="primary" size="sm" onClick={handleStartAddingBlock}>
-                  <Plus className="w-4 h-4 mr-1.5" />
-                  Crear Nuevo Ejercicio
-                </Button>
-              </div>
+              <Button variant="primary" size="sm" onClick={handleStartAddingBlock}>
+                <Plus className="w-4 h-4 mr-1.5" />
+                Añadir Ejercicio
+              </Button>
             </div>
           )
         )}

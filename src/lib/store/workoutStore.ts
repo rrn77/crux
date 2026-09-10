@@ -1,9 +1,8 @@
 import { create } from 'zustand';
-import { WorkoutTemplate, WorkoutSession, WorkoutBlock, BlockLog } from '../types';
+import { WorkoutSession, WorkoutBlock, BlockLog } from '../types';
 import { supabase } from '../supabase/client';
 
 interface WorkoutStore {
-  templates: WorkoutTemplate[];
   sessions: WorkoutSession[];
   userId: string | null;
   isLoading: boolean;
@@ -11,12 +10,6 @@ interface WorkoutStore {
   // Sesión de usuario y carga de datos desde Supabase
   setUserId: (userId: string | null) => void;
   fetchAll: (userId: string) => Promise<void>;
-
-  // Plantillas de ejercicios
-  addTemplate: (template: Omit<WorkoutTemplate, 'id' | 'createdAt' | 'updatedAt'>) => Promise<WorkoutTemplate>;
-  updateTemplate: (id: string, template: Partial<WorkoutTemplate>) => Promise<void>;
-  deleteTemplate: (id: string) => Promise<void>;
-  getTemplateById: (id: string) => WorkoutTemplate | undefined;
 
   // Sesiones planificadas e historial
   scheduleSession: (sessionData: Omit<WorkoutSession, 'id'> & { id?: string }) => Promise<WorkoutSession>;
@@ -86,18 +79,6 @@ function deserializeSessionNotes(rawNotes?: string): {
   return { notes: rawNotes };
 }
 
-function mapRemoteTemplate(tpl: Record<string, unknown>): WorkoutTemplate {
-  return {
-    id: tpl.id as string,
-    userId: tpl.user_id as string | undefined,
-    title: tpl.title as string,
-    type: tpl.type as WorkoutTemplate['type'],
-    description: tpl.description as string | undefined,
-    createdAt: tpl.created_at as string,
-    updatedAt: tpl.updated_at as string,
-  };
-}
-
 function mapRemoteSession(s: Record<string, unknown>): WorkoutSession {
   const rawNotes = s.notes as string | undefined;
   const meta = deserializeSessionNotes(rawNotes);
@@ -111,7 +92,6 @@ function mapRemoteSession(s: Record<string, unknown>): WorkoutSession {
   return {
     id: s.id as string,
     userId: s.user_id as string,
-    templateId: s.template_id as string | undefined,
     title: s.title as string,
     scheduledDate,
     startedAt: s.started_at as string,
@@ -146,7 +126,6 @@ async function pushSessionRow(session: WorkoutSession, userId: string) {
   const { error } = await supabase.from('workout_sessions').upsert({
     id: session.id,
     user_id: userId,
-    template_id: session.templateId || null,
     title: session.title,
     started_at: session.startedAt,
     completed_at: session.completedAt,
@@ -180,7 +159,6 @@ async function pushSessionRow(session: WorkoutSession, userId: string) {
 }
 
 export const useWorkoutStore = create<WorkoutStore>()((set, get) => ({
-  templates: [],
   sessions: [],
   userId: null,
   isLoading: false,
@@ -191,99 +169,20 @@ export const useWorkoutStore = create<WorkoutStore>()((set, get) => ({
     if (!supabase) return;
     set({ isLoading: true });
     try {
-      const [{ data: remoteTemplates, error: tplErr }, { data: remoteSessions, error: sessErr }] = await Promise.all([
-        supabase.from('workout_templates').select('*').eq('user_id', userId),
-        supabase
-          .from('workout_sessions')
-          .select('*, block_logs(*)')
-          .eq('user_id', userId)
-          .order('started_at', { ascending: false }),
-      ]);
+      const { data: remoteSessions, error: sessErr } = await supabase
+        .from('workout_sessions')
+        .select('*, block_logs(*)')
+        .eq('user_id', userId)
+        .order('started_at', { ascending: false });
 
-      if (tplErr) throw tplErr;
       if (sessErr) throw sessErr;
 
-      set({
-        templates: (remoteTemplates || []).map(mapRemoteTemplate),
-        sessions: (remoteSessions || []).map(mapRemoteSession),
-      });
+      set({ sessions: (remoteSessions || []).map(mapRemoteSession) });
     } catch (err) {
       console.warn('Error al cargar datos desde Supabase:', err);
     } finally {
       set({ isLoading: false });
     }
-  },
-
-  addTemplate: async (templateData) => {
-    const userId = get().userId;
-    const id = generateUUID();
-    const now = new Date().toISOString();
-    const newTemplate: WorkoutTemplate = {
-      ...templateData,
-      id,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    set((state) => ({ templates: [newTemplate, ...state.templates] }));
-
-    if (supabase && userId) {
-      try {
-        const { error } = await supabase.from('workout_templates').insert({
-          id,
-          user_id: userId,
-          title: newTemplate.title,
-          type: newTemplate.type,
-          description: newTemplate.description,
-        });
-        if (error) throw error;
-      } catch (err) {
-        console.warn('Error al guardar plantilla en Supabase:', err);
-      }
-    }
-
-    return newTemplate;
-  },
-
-  updateTemplate: async (id, data) => {
-    const now = new Date().toISOString();
-    set((state) => ({
-      templates: state.templates.map((tpl) => (tpl.id === id ? { ...tpl, ...data, updatedAt: now } : tpl)),
-    }));
-
-    if (!supabase) return;
-    try {
-      const updated = get().templates.find((t) => t.id === id);
-      if (!updated) return;
-
-      const { error } = await supabase
-        .from('workout_templates')
-        .update({
-          title: updated.title,
-          type: updated.type,
-          description: updated.description,
-        })
-        .eq('id', id);
-      if (error) throw error;
-    } catch (err) {
-      console.warn('Error al actualizar plantilla en Supabase:', err);
-    }
-  },
-
-  deleteTemplate: async (id) => {
-    set((state) => ({ templates: state.templates.filter((tpl) => tpl.id !== id) }));
-
-    if (!supabase) return;
-    try {
-      const { error } = await supabase.from('workout_templates').delete().eq('id', id);
-      if (error) throw error;
-    } catch (err) {
-      console.warn('Error al eliminar plantilla en Supabase:', err);
-    }
-  },
-
-  getTemplateById: (id) => {
-    return get().templates.find((tpl) => tpl.id === id);
   },
 
   scheduleSession: async (sessionData) => {
@@ -410,6 +309,6 @@ export const useWorkoutStore = create<WorkoutStore>()((set, get) => ({
   },
 
   clearWorkoutStore: () => {
-    set({ templates: [], sessions: [], userId: null, isLoading: false });
+    set({ sessions: [], userId: null, isLoading: false });
   },
 }));

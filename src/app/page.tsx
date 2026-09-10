@@ -8,24 +8,16 @@ import {
   Plus,
   Clock,
   Activity,
-  History,
-  TrendingUp,
-  BookOpen,
-  ArrowRight,
-  Sparkles,
   ChevronRight,
   Calendar,
   CalendarCheck,
-  CalendarPlus,
   CheckCircle2,
-  Dumbbell,
-  Layers,
   Trash2,
 } from 'lucide-react';
 import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { useTestStore } from '@/lib/store/testStore';
-import { formatDurationHuman, formatBlockSummary, BLOCK_TYPE_CONFIG } from '@/lib/timer/durationHelper';
+import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -33,7 +25,7 @@ import { WorkoutSession } from '@/lib/types';
 
 export default function HomePage() {
   const router = useRouter();
-  const { templates, sessions, getTodaySession, deleteSession } = useWorkoutStore();
+  const { sessions, getTodaySession, deleteSession } = useWorkoutStore();
   const { startWorkout } = useActiveWorkoutStore();
   const { tests } = useTestStore();
 
@@ -128,7 +120,6 @@ export default function HomePage() {
     startWorkout(
       todaySession.title,
       todaySession.blocks,
-      todaySession.templateId,
       todaySession.id,
       todaySession.scheduledDate
     );
@@ -302,7 +293,7 @@ export default function HomePage() {
               Sin sesión programada para hoy
             </h1>
             <p className="text-xs sm:text-sm text-graphite-500">
-              Tómate el día para asimilar cargas o planifica tu sesión con tus plantillas de ejercicios.
+              Tómate el día para asimilar cargas o planifica tu sesión de hoy.
             </p>
           </div>
 
@@ -311,13 +302,6 @@ export default function HomePage() {
               <Button variant="primary" size="md">
                 <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />
                 Planificar Sesión de Hoy
-              </Button>
-            </Link>
-
-            <Link href="/workouts/templates">
-              <Button variant="outline" size="md">
-                <BookOpen className="w-4 h-4 mr-1.5 text-moss" />
-                Tus Plantillas de Ejercicios
               </Button>
             </Link>
           </div>
@@ -381,8 +365,8 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 3. Accesos Rápidos Principales (4 Botones) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      {/* 3. Accesos Rápidos Principales */}
+      <div className="grid grid-cols-3 gap-2.5">
         <Link
           href="/workouts/new"
           className="p-3.5 rounded-2xl bg-white dark:bg-graphite-900 border border-chalk-300 dark:border-graphite-800 hover:border-terracotta/50 transition-all flex flex-col items-start gap-2 shadow-sm group"
@@ -395,21 +379,6 @@ export default function HomePage() {
               Planificar Sesión
             </div>
             <div className="text-[11px] text-graphite-500">Para cualquier día</div>
-          </div>
-        </Link>
-
-        <Link
-          href="/workouts/templates"
-          className="p-3.5 rounded-2xl bg-white dark:bg-graphite-900 border border-chalk-300 dark:border-graphite-800 hover:border-moss/50 transition-all flex flex-col items-start gap-2 shadow-sm group text-left"
-        >
-          <div className="w-9 h-9 rounded-xl bg-moss-100 dark:bg-moss-900/40 text-moss flex items-center justify-center group-hover:scale-105 transition-transform">
-            <BookOpen className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
-              Tus Ejercicios
-            </div>
-            <div className="text-[11px] text-graphite-500">{templates.length} plantillas</div>
           </div>
         </Link>
 
@@ -444,82 +413,7 @@ export default function HomePage() {
         </Link>
       </div>
 
-      {/* 4. Plantillas de Ejercicios Creadas por el Usuario */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="font-black text-lg text-graphite-900 dark:text-graphite-100">
-              Tus Plantillas de Ejercicios
-            </h2>
-            <p className="text-xs text-graphite-500">Ejercicios independientes listos para usar en tus entrenamientos</p>
-          </div>
-          <Link
-            href="/workouts/templates"
-            className="text-xs font-bold text-terracotta hover:underline flex items-center gap-0.5 shrink-0"
-          >
-            Gestionar ({templates.length})
-            <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
-
-        {templates.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {templates.slice(0, 4).map((tpl) => (
-              <div
-                key={tpl.id}
-                className="p-4 rounded-2xl bg-white dark:bg-graphite-900 border border-chalk-300 dark:border-graphite-800 shadow-sm hover:border-terracotta/50 transition-all flex flex-col justify-between gap-3"
-              >
-                <div>
-                  <div className="flex items-center justify-between gap-1 mb-1">
-                    <h3 className="font-bold text-sm text-graphite-900 dark:text-graphite-100 truncate">
-                      {tpl.title}
-                    </h3>
-                    <Badge variant={BLOCK_TYPE_CONFIG[tpl.type].variant} size="sm" className="shrink-0">
-                      {BLOCK_TYPE_CONFIG[tpl.type].label}
-                    </Badge>
-                  </div>
-                  {tpl.description && (
-                    <p className="text-xs text-graphite-500 dark:text-graphite-400 line-clamp-2">
-                      {tpl.description}
-                    </p>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-chalk-200 dark:border-graphite-800">
-                  <Link href={`/workouts/new?templateId=${tpl.id}&date=${todayIso}`}>
-                    <Button variant="primary" size="sm">
-                      <CalendarPlus className="w-3.5 h-3.5 mr-1" />
-                      Planificar
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="p-6 text-center bg-white dark:bg-graphite-900 rounded-3xl border border-chalk-300 dark:border-graphite-800 shadow-sm space-y-3">
-            <div className="w-10 h-10 rounded-2xl bg-moss-100 dark:bg-moss-900/40 text-moss mx-auto flex items-center justify-center">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div className="space-y-1">
-              <h3 className="font-bold text-sm text-graphite-900 dark:text-white">
-                No tienes plantillas de ejercicios guardadas
-              </h3>
-              <p className="text-xs text-graphite-500 max-w-sm mx-auto">
-                Crea ejercicios personalizados de suspensiones, dominadas, búlder o intervalos para utilizarlos en tus sesiones.
-              </p>
-            </div>
-            <Link href="/workouts/templates">
-              <Button variant="outline" size="sm">
-                <Plus className="w-4 h-4 mr-1.5" />
-                Crear Mi Primer Ejercicio
-              </Button>
-            </Link>
-          </div>
-        )}
-      </div>
-
-      {/* 5. Historial Reciente de Sesiones Realizadas */}
+      {/* 4. Historial Reciente de Sesiones Realizadas */}
       {recentSessions.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-center justify-between">

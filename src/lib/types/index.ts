@@ -4,8 +4,6 @@ export type TimerPhase = 'idle' | 'work' | 'rest' | 'blockCompleted' | 'sessionC
 
 export interface WorkoutBlock {
   id: string;
-  templateId?: string;
-  templateTitle?: string;
   position: number;
   title: string;
   type: BlockType;
@@ -21,16 +19,6 @@ export interface WorkoutBlock {
   attempts?: number;
   problems?: number;
   movements?: number;
-}
-
-export interface WorkoutTemplate {
-  id: string;
-  userId?: string;
-  title: string;
-  type: BlockType;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export type SessionStatus = 'scheduled' | 'in_progress' | 'completed' | 'abandoned';
@@ -54,7 +42,6 @@ export interface BlockLog {
 export interface WorkoutSession {
   id: string;
   userId?: string;
-  templateId?: string;
   title: string;
   scheduledDate?: string; // Fecha asignada (YYYY-MM-DD) para planificación
   startedAt: string;

@@ -35,14 +35,13 @@ export default function SettingsPage() {
     setAutoStartRest,
   } = useSettingsStore();
 
-  const { sessions, templates } = useWorkoutStore();
+  const { sessions } = useWorkoutStore();
   const { tests } = useTestStore();
 
   const handleExportData = () => {
     const data = {
       cruxExportVersion: 1,
       exportedAt: new Date().toISOString(),
-      templates,
       sessions,
       tests,
     };
@@ -228,12 +227,12 @@ export default function SettingsPage() {
 
             {user ? (
               <p className="text-graphite-600 dark:text-graphite-300">
-                Sesión iniciada como <strong className="text-graphite-900 dark:text-white font-mono">{user.email}</strong>. Todos tus entrenamientos, plantillas y tests se leen y guardan directamente en tu base de datos de Supabase.
+                Sesión iniciada como <strong className="text-graphite-900 dark:text-white font-mono">{user.email}</strong>. Todos tus entrenamientos y tests se leen y guardan directamente en tu base de datos de Supabase.
               </p>
             ) : (
               <p className="text-graphite-500">
                 {isSupabaseConfigured
-                  ? 'Inicia sesión para acceder a tus plantillas, historial y tests almacenados en Supabase.'
+                  ? 'Inicia sesión para acceder a tu historial y tests almacenados en Supabase.'
                   : 'CRUX necesita Supabase para funcionar. Configura `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` en `.env.local`.'}
               </p>
             )}

@@ -54,7 +54,7 @@ export default function HistoryDetailPage() {
   const [isDeleting, setIsDeleting] = React.useState(false);
 
   const handleRepeatSession = () => {
-    startWorkout(session.title, session.blocks, session.templateId);
+    startWorkout(session.title, session.blocks);
     router.push('/workout/active');
   };
 
