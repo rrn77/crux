@@ -32,7 +32,7 @@ export interface WorkoutTemplate {
   updatedAt: string;
 }
 
-export type SessionStatus = 'in_progress' | 'completed' | 'abandoned';
+export type SessionStatus = 'scheduled' | 'in_progress' | 'completed' | 'abandoned';
 
 export interface BlockLog {
   id: string;
@@ -55,6 +55,7 @@ export interface WorkoutSession {
   userId?: string;
   templateId?: string;
   title: string;
+  scheduledDate?: string; // Fecha asignada (YYYY-MM-DD) para planificación
   startedAt: string;
   completedAt?: string;
   durationSeconds: number;

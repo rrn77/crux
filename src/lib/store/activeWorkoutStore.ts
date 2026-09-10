@@ -27,7 +27,13 @@ interface ActiveWorkoutStore {
   lastTickTimestamp: number | null;
 
   // Acciones
-  startWorkout: (title: string, blocks: WorkoutBlock[], templateId?: string) => void;
+  startWorkout: (
+    title: string,
+    blocks: WorkoutBlock[],
+    templateId?: string,
+    existingSessionId?: string,
+    scheduledDate?: string
+  ) => void;
   startTimer: (phaseOverride?: 'work' | 'rest') => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
@@ -69,15 +75,16 @@ export const useActiveWorkoutStore = create<ActiveWorkoutStore>()(
       totalSessionElapsedSeconds: 0,
       lastTickTimestamp: null,
 
-      startWorkout: (title, blocks, templateId) => {
+      startWorkout: (title, blocks, templateId, existingSessionId, scheduledDate) => {
         if (!blocks || blocks.length === 0) return;
 
         const now = new Date().toISOString();
+        const sessionId = existingSessionId || `session-${Date.now()}`;
         const initialLogs: BlockLog[] = blocks.map((b, idx) => {
           const { totalSets } = getBlockTargetUnits(b);
           return {
             id: `log-${Date.now()}-${idx}`,
-            sessionId: `session-${Date.now()}`,
+            sessionId,
             blockId: b.id,
             position: idx,
             blockTitle: b.title,
@@ -92,15 +99,23 @@ export const useActiveWorkoutStore = create<ActiveWorkoutStore>()(
         });
 
         const newSession: WorkoutSession = {
-          id: `session-${Date.now()}`,
+          id: sessionId,
           title: title || 'Sesión de Entrenamiento',
           templateId,
+          scheduledDate: scheduledDate || new Date().toISOString().split('T')[0],
           startedAt: now,
           durationSeconds: 0,
           status: 'in_progress',
           blocks,
           logs: initialLogs,
         };
+
+        if (existingSessionId) {
+          useWorkoutStore.getState().updateSession(existingSessionId, {
+            status: 'in_progress',
+            startedAt: now,
+          });
+        }
 
         const initialTimer = initializeBlockTimer(blocks[0]);
 

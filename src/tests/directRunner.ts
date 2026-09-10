@@ -163,6 +163,7 @@ test('Recuperación con auto-transición tras expiración en background', () => 
 });
 
 import { calculateTestDelta, calculateTestFatigue } from '../lib/store/testStore';
+import { getLocalDateIsoString, useWorkoutStore } from '../lib/store/workoutStore';
 
 // 4. Tests de Test Delta y Fatiga con Criterio de Mejora (higher_is_better vs lower_is_better)
 test('calculateTestDelta: higher_is_better (más es mejor: kg, reps)', () => {
@@ -213,6 +214,74 @@ test('calculateTestFatigue: peakValue y pérdida según targetMetric', () => {
   const fatigueDom = calculateTestFatigue(setsDominadas, 'higher_is_better');
   assert.strictEqual(fatigueDom?.peakValue, 30, 'El pico en dominadas debe ser el mayor lastre (30kg)');
   assert.strictEqual(fatigueDom?.isTotalLoss, true, 'Pasar de 30kg a 25kg es pérdida de rendimiento por fatiga');
+});
+
+// 5. Tests de Planificación de Sesiones y Calendario (workoutStore)
+test('getLocalDateIsoString: formato YYYY-MM-DD correcto', () => {
+  const d = new Date(2026, 8, 15); // Septiembre 15, 2026
+  const iso = getLocalDateIsoString(d);
+  assert.strictEqual(iso, '2026-09-15');
+});
+
+test('workoutStore: scheduleSession y getSessionsByDate', () => {
+  const store = useWorkoutStore.getState();
+  store.clearWorkoutStore();
+
+  const sessionTomorrow = store.scheduleSession({
+    title: 'Fuerza de Dedos - Miércoles',
+    scheduledDate: '2026-09-16',
+    status: 'scheduled',
+    blocks: [],
+    logs: [],
+    durationSeconds: 0,
+    startedAt: '2026-09-16T10:00:00.000Z',
+  });
+
+  assert.strictEqual(sessionTomorrow.status, 'scheduled');
+  assert.strictEqual(sessionTomorrow.scheduledDate, '2026-09-16');
+
+  const fetched = useWorkoutStore.getState().getSessionsByDate('2026-09-16');
+  assert.strictEqual(fetched.length, 1);
+  assert.strictEqual(fetched[0].title, 'Fuerza de Dedos - Miércoles');
+
+  const empty = useWorkoutStore.getState().getSessionsByDate('2026-09-20');
+  assert.strictEqual(empty.length, 0);
+});
+
+test('workoutStore: getTodaySession prioridad programada/en progreso', () => {
+  const store = useWorkoutStore.getState();
+  store.clearWorkoutStore();
+
+  const todayStr = getLocalDateIsoString();
+
+  // Guardar sesión completada anterior de hoy
+  store.saveSession({
+    id: 's-done',
+    title: 'Movilidad Mañana',
+    scheduledDate: todayStr,
+    status: 'completed',
+    blocks: [],
+    logs: [],
+    durationSeconds: 900,
+    startedAt: `${todayStr}T08:00:00.000Z`,
+    completedAt: `${todayStr}T08:15:00.000Z`,
+  });
+
+  // Guardar sesión programada para la tarde de hoy
+  store.scheduleSession({
+    id: 's-pending',
+    title: 'Bloques Tarde',
+    scheduledDate: todayStr,
+    status: 'scheduled',
+    blocks: [],
+    logs: [],
+    durationSeconds: 0,
+    startedAt: `${todayStr}T18:00:00.000Z`,
+  });
+
+  const todaySession = useWorkoutStore.getState().getTodaySession();
+  assert.ok(todaySession);
+  assert.strictEqual(todaySession?.id, 's-pending', 'Debe priorizar la sesión pendiente/programada');
 });
 
 console.log(`\n🎉 Resumen: ${passed} pruebas superadas, ${failed} fallidas.\n`);
