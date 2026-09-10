@@ -170,7 +170,7 @@ export function ProgressCharts() {
           )}
         </div>
 
-        {testChartData.length > 0 ? (
+        {uniqueTitles.length > 0 && testChartData.length > 0 ? (
           <div className="h-64 w-full pt-2">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={testChartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -221,8 +221,20 @@ export function ProgressCharts() {
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="py-12 text-center text-graphite-400 text-xs">
-            No hay registros de &ldquo;{selectedTestTitle}&rdquo; en el periodo seleccionado.
+          <div className="py-10 text-center space-y-3">
+            <p className="text-graphite-500 text-xs">
+              {uniqueTitles.length === 0
+                ? 'Aún no has registrado tests físicos ni benchmarks.'
+                : `No hay registros de "${selectedTestTitle}" en el periodo seleccionado.`}
+            </p>
+            {uniqueTitles.length === 0 && (
+              <a
+                href="/tests/new"
+                className="inline-flex items-center gap-1 text-xs font-bold text-terracotta hover:underline"
+              >
+                + Registrar mi primer test
+              </a>
+            )}
           </div>
         )}
       </div>

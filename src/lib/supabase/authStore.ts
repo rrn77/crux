@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './client';
 import { syncService } from './syncService';
+import { useWorkoutStore } from '../store/workoutStore';
+import { useTestStore } from '../store/testStore';
 
 interface AuthState {
   user: User | null;
@@ -137,6 +139,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (supabase) {
       await supabase.auth.signOut();
     }
+    useWorkoutStore.getState().clearWorkoutStore();
+    useTestStore.getState().clearTestStore();
     set({ user: null, session: null, errorMessage: null });
   },
 

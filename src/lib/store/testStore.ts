@@ -9,65 +9,13 @@ interface TestStore {
   getTestsByTitle: (title: string) => TestRecord[];
   getPreviousTest: (title: string, currentTestDate: string) => TestRecord | undefined;
   getUniqueTitles: () => string[];
+  clearTestStore: () => void;
 }
-
-const INITIAL_TESTS: TestRecord[] = [
-  {
-    id: 'test-1',
-    title: 'Suspensiones 20 mm (Lastre máx)',
-    protocol: '5 segundos en semiarqueo estricto a 90°',
-    value: 20,
-    unit: 'kg',
-    testedAt: new Date(Date.now() - 86400000 * 30).toISOString(),
-    notes: 'Lastre con cinturón. Buena sensación.',
-    createdAt: new Date(Date.now() - 86400000 * 30).toISOString(),
-  },
-  {
-    id: 'test-2',
-    title: 'Suspensiones 20 mm (Lastre máx)',
-    protocol: '5 segundos en semiarqueo estricto a 90°',
-    value: 22.5,
-    unit: 'kg',
-    testedAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-    notes: 'Mejora clara en la solidez del hombro.',
-    createdAt: new Date(Date.now() - 86400000 * 7).toISOString(),
-  },
-  {
-    id: 'test-3',
-    title: 'Dominada con Lastre (1RM)',
-    protocol: '1 repetición completa pasando barbilla',
-    value: 35,
-    unit: 'kg',
-    testedAt: new Date(Date.now() - 86400000 * 45).toISOString(),
-    notes: 'Primer test del mes.',
-    createdAt: new Date(Date.now() - 86400000 * 45).toISOString(),
-  },
-  {
-    id: 'test-4',
-    title: 'Dominada con Lastre (1RM)',
-    protocol: '1 repetición completa pasando barbilla',
-    value: 37.5,
-    unit: 'kg',
-    testedAt: new Date(Date.now() - 86400000 * 12).toISOString(),
-    notes: 'Sensación potente al arranque.',
-    createdAt: new Date(Date.now() - 86400000 * 12).toISOString(),
-  },
-  {
-    id: 'test-5',
-    title: 'Tiempo Máx Suspensión 20 mm',
-    protocol: 'Suspensión isométrica a dos manos peso corporal',
-    value: 38,
-    unit: 's',
-    testedAt: new Date(Date.now() - 86400000 * 20).toISOString(),
-    notes: 'Resistencia pura de dedos.',
-    createdAt: new Date(Date.now() - 86400000 * 20).toISOString(),
-  },
-];
 
 export const useTestStore = create<TestStore>()(
   persist(
     (set, get) => ({
-      tests: INITIAL_TESTS,
+      tests: [],
 
       addTest: (testData) => {
         const id = `test-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
@@ -92,25 +40,30 @@ export const useTestStore = create<TestStore>()(
 
       getTestsByTitle: (title) => {
         return get()
-          .tests.filter((t) => t.title.toLowerCase().trim() === title.toLowerCase().trim())
-          .sort((a, b) => new Date(a.testedAt).getTime() - new Date(b.testedAt).getTime());
+          .tests.filter((t) => t.title.toLowerCase() === title.toLowerCase())
+          .sort((a, b) => new Date(b.testedAt).getTime() - new Date(a.testedAt).getTime());
       },
 
       getPreviousTest: (title, currentTestDate) => {
-        const matching = get()
+        const currentTimestamp = new Date(currentTestDate).getTime();
+        const sameTypeTests = get()
           .tests.filter(
             (t) =>
-              t.title.toLowerCase().trim() === title.toLowerCase().trim() &&
-              new Date(t.testedAt).getTime() < new Date(currentTestDate).getTime()
+              t.title.toLowerCase() === title.toLowerCase() &&
+              new Date(t.testedAt).getTime() < currentTimestamp
           )
           .sort((a, b) => new Date(b.testedAt).getTime() - new Date(a.testedAt).getTime());
 
-        return matching[0];
+        return sameTypeTests[0];
       },
 
       getUniqueTitles: () => {
-        const setTitles = new Set(get().tests.map((t) => t.title.trim()));
-        return Array.from(setTitles);
+        const titles = get().tests.map((t) => t.title);
+        return Array.from(new Set(titles));
+      },
+
+      clearTestStore: () => {
+        set({ tests: [] });
       },
     }),
     {
@@ -120,21 +73,36 @@ export const useTestStore = create<TestStore>()(
 );
 
 /**
- * Calcula la diferencia entre un test y su registro previo
+ * Helper para calcular la diferencia (delta) entre dos tests del mismo tipo
  */
-export function calculateTestDelta(currentVal: number, previousVal?: number, unit?: string) {
-  if (previousVal === undefined || previousVal === null) return null;
+export function calculateTestDelta(
+  currentValue: number,
+  previousValue?: number,
+  unit: string = ''
+): {
+  deltaValue: number;
+  percentage: number;
+  isImprovement: boolean;
+  isPositive: boolean;
+  isNeutral: boolean;
+  formatted: string;
+} | null {
+  if (previousValue === undefined || previousValue === null) return null;
 
-  const diff = Number((currentVal - previousVal).toFixed(2));
-  const percent = previousVal !== 0 ? Number(((diff / previousVal) * 100).toFixed(1)) : 0;
-  const isPositive = diff > 0;
-  const isNeutral = diff === 0;
+  const deltaValue = currentValue - previousValue;
+  const percentage = previousValue !== 0 ? (deltaValue / previousValue) * 100 : 0;
+  const isPositive = deltaValue > 0;
+  const isNeutral = deltaValue === 0;
+  const isImprovement = deltaValue > 0;
+  const sign = deltaValue > 0 ? '+' : '';
+  const formatted = `${sign}${Math.round(deltaValue * 10) / 10} ${unit} (${sign}${Math.round(percentage * 10) / 10}%)`;
 
   return {
-    diff,
-    percent,
+    deltaValue: Math.round(deltaValue * 10) / 10,
+    percentage: Math.round(percentage * 10) / 10,
+    isImprovement,
     isPositive,
     isNeutral,
-    formatted: `${diff > 0 ? '+' : ''}${diff} ${unit || ''} (${diff > 0 ? '+' : ''}${percent}%)`,
+    formatted,
   };
 }
