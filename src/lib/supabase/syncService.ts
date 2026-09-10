@@ -299,6 +299,28 @@ class SupabaseSyncService {
   }
 
   /**
+   * Actualizar un test físico en Supabase
+   */
+  async updateRemoteTest(id: string, testData: Partial<TestRecord>) {
+    if (!supabase) return;
+    try {
+      await supabase
+        .from('tests')
+        .update({
+          title: testData.title,
+          protocol: testData.protocol,
+          value: testData.value,
+          unit: testData.unit,
+          tested_at: testData.testedAt,
+          notes: testData.notes,
+        })
+        .eq('id', id);
+    } catch (err) {
+      console.warn('Error al actualizar test en Supabase:', err);
+    }
+  }
+
+  /**
    * Eliminar una plantilla de Supabase
    */
   async deleteTemplate(id: string) {

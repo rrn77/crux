@@ -10,17 +10,21 @@ import {
   Minus,
   Calendar,
   Trash2,
+  Edit2,
   Filter,
   CheckCircle2,
   Dumbbell,
 } from 'lucide-react';
 import { useTestStore, calculateTestDelta } from '@/lib/store/testStore';
+import { TestRecord } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { EditTestModal } from '@/components/test/EditTestModal';
 
 export default function TestsPage() {
   const { tests, getPreviousTest, deleteTest, getUniqueTitles } = useTestStore();
   const [selectedExerciseFilter, setSelectedExerciseFilter] = useState<string>('all');
+  const [editingTest, setEditingTest] = useState<TestRecord | null>(null);
 
   const uniqueTitles = getUniqueTitles();
 
@@ -217,19 +221,32 @@ export default function TestsPage() {
                           </div>
                         </div>
 
-                        {/* Botón Eliminar Registro */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (confirm(`¿Eliminar la marca de "${test.title}"?`)) {
-                              deleteTest(test.id);
-                            }
-                          }}
-                          aria-label={`Eliminar marca de ${test.title}`}
-                          className="p-2 text-graphite-400 hover:text-red-600 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {/* Botones de Acción: Editar y Eliminar */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setEditingTest(test)}
+                            aria-label={`Editar marca de ${test.title}`}
+                            title="Editar test"
+                            className="p-2 text-graphite-400 hover:text-terracotta rounded-xl hover:bg-terracotta-50 dark:hover:bg-terracotta-950/30 transition-colors"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`¿Eliminar la marca de "${test.title}"?`)) {
+                                deleteTest(test.id);
+                              }
+                            }}
+                            aria-label={`Eliminar marca de ${test.title}`}
+                            title="Eliminar test"
+                            className="p-2 text-graphite-400 hover:text-red-600 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -254,6 +271,13 @@ export default function TestsPage() {
           </Link>
         </div>
       )}
+
+      {/* Modal para Editar Test */}
+      <EditTestModal
+        isOpen={Boolean(editingTest)}
+        onClose={() => setEditingTest(null)}
+        test={editingTest}
+      />
     </div>
   );
 }

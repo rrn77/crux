@@ -5,6 +5,7 @@ import { TestRecord } from '../types';
 interface TestStore {
   tests: TestRecord[];
   addTest: (test: Omit<TestRecord, 'id' | 'createdAt'>) => TestRecord;
+  updateTest: (id: string, test: Partial<TestRecord>) => void;
   deleteTest: (id: string) => void;
   getTestsByTitle: (title: string) => TestRecord[];
   getPreviousTest: (title: string, currentTestDate: string) => TestRecord | undefined;
@@ -30,6 +31,12 @@ export const useTestStore = create<TestStore>()(
         }));
 
         return newTest;
+      },
+
+      updateTest: (id, data) => {
+        set((state) => ({
+          tests: state.tests.map((t) => (t.id === id ? { ...t, ...data } : t)),
+        }));
       },
 
       deleteTest: (id) => {
