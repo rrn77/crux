@@ -81,12 +81,29 @@ export default function NewTestPage() {
   };
 
   const onSubmit = async (data: TestFormData) => {
+    // Calcular timestamp ordenado secuencialmente dentro del día seleccionado
+    const existingTestsOnDay = tests.filter((t) => {
+      const d = new Date(t.testedAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      return key === data.testedAt;
+    });
+
+    let testedAtIso: string;
+    if (existingTestsOnDay.length > 0) {
+      const maxTimestamp = Math.max(...existingTestsOnDay.map((t) => new Date(t.testedAt).getTime()));
+      testedAtIso = new Date(maxTimestamp + 60000).toISOString();
+    } else {
+      const [year, month, day] = data.testedAt.split('-').map(Number);
+      const now = new Date();
+      testedAtIso = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+    }
+
     const newTest = addTest({
       title: data.title.trim(),
       protocol: data.protocol?.trim() || undefined,
       value: data.value,
       unit: data.unit.trim(),
-      testedAt: new Date(data.testedAt).toISOString(),
+      testedAt: testedAtIso,
       notes: data.notes?.trim() || undefined,
     });
 

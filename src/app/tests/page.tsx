@@ -11,6 +11,8 @@ import {
   Calendar,
   Trash2,
   Edit2,
+  ChevronUp,
+  ChevronDown,
   Filter,
   CheckCircle2,
   Dumbbell,
@@ -24,7 +26,7 @@ import { EditTestModal } from '@/components/test/EditTestModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function TestsPage() {
-  const { tests, getPreviousTest, deleteTest, getUniqueTitles } = useTestStore();
+  const { tests, getPreviousTest, updateTest, deleteTest, getUniqueTitles } = useTestStore();
   const [selectedExerciseFilter, setSelectedExerciseFilter] = useState<string>('all');
   const [editingTest, setEditingTest] = useState<TestRecord | null>(null);
   const [deletingTest, setDeletingTest] = useState<TestRecord | null>(null);
@@ -45,6 +47,28 @@ export default function TestsPage() {
     }
   };
 
+  const handleMoveTest = (items: TestRecord[], currentIndex: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= items.length) return;
+
+    const newItems = [...items];
+    const [movedItem] = newItems.splice(currentIndex, 1);
+    newItems.splice(targetIndex, 0, movedItem);
+
+    const firstDate = new Date(newItems[0].testedAt);
+    const year = firstDate.getFullYear();
+    const month = firstDate.getMonth();
+    const day = firstDate.getDate();
+
+    newItems.forEach((item, idx) => {
+      const newTestedAt = new Date(year, month, day, 10, idx, 0, 0).toISOString();
+      if (item.testedAt !== newTestedAt) {
+        updateTest(item.id, { testedAt: newTestedAt });
+        syncService.updateRemoteTest(item.id, { testedAt: newTestedAt });
+      }
+    });
+  };
+
   const uniqueTitles = getUniqueTitles();
 
   // Filtrar tests si se selecciona un ejercicio específico
@@ -55,7 +79,7 @@ export default function TestsPage() {
     );
   }, [tests, selectedExerciseFilter]);
 
-  // Agrupar tests por día (fecha) ordenados de más reciente a más antiguo
+  // Agrupar tests por día (fecha) ordenados de más reciente a más antiguo, y dentro de cada día orden cronológico
   const groupedByDay = useMemo(() => {
     const groups: {
       [key: string]: {
@@ -65,11 +89,7 @@ export default function TestsPage() {
       };
     } = {};
 
-    const sorted = [...filteredTests].sort(
-      (a, b) => new Date(b.testedAt).getTime() - new Date(a.testedAt).getTime()
-    );
-
-    sorted.forEach((test) => {
+    filteredTests.forEach((test) => {
       const d = new Date(test.testedAt);
       const dateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -89,7 +109,20 @@ export default function TestsPage() {
       groups[dateKey].items.push(test);
     });
 
-    return Object.values(groups);
+    // Ordenar ejercicios dentro de cada día por orden de ejecución (#1 primero, #2 segundo...)
+    Object.values(groups).forEach((group) => {
+      group.items.sort((a, b) => {
+        const timeA = new Date(a.testedAt).getTime();
+        const timeB = new Date(b.testedAt).getTime();
+        if (timeA !== timeB) return timeA - timeB;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+    });
+
+    // Ordenar días de más reciente a más antiguo
+    return Object.values(groups).sort(
+      (a, b) => new Date(b.dateKey).getTime() - new Date(a.dateKey).getTime()
+    );
   }, [filteredTests]);
 
   return (
@@ -173,7 +206,7 @@ export default function TestsPage() {
 
               {/* Lista de Ejercicios del Día */}
               <div className="divide-y divide-chalk-200 dark:divide-graphite-800 p-2 sm:p-3 space-y-1">
-                {dayGroup.items.map((test) => {
+                {dayGroup.items.map((test, index) => {
                   // Seguimiento por ejercicio: comparar con la prueba ANTERIOR de ese mismo ejercicio
                   const previousTest = getPreviousTest(test.title, test.testedAt);
                   const delta = calculateTestDelta(test.value, previousTest?.value, test.unit);
@@ -185,21 +218,29 @@ export default function TestsPage() {
                     >
                       {/* Información del Ejercicio */}
                       <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="w-6 h-6 rounded-lg bg-chalk-200 dark:bg-graphite-800 text-graphite-700 dark:text-graphite-300 font-mono font-black text-xs flex items-center justify-center shrink-0 border border-chalk-300/60 dark:border-graphite-700"
+                            title={`Ejercicio #${index + 1} del día`}
+                          >
+                            #{index + 1}
+                          </span>
                           <h3 className="font-bold text-base text-graphite-900 dark:text-graphite-100 truncate">
                             {test.title}
                           </h3>
                         </div>
 
-                        {test.protocol && (
-                          <p className="text-xs text-graphite-500 line-clamp-1">{test.protocol}</p>
-                        )}
+                        <div className="pl-8.5">
+                          {test.protocol && (
+                            <p className="text-xs text-graphite-500 line-clamp-1">{test.protocol}</p>
+                          )}
 
-                        {test.notes && (
-                          <p className="text-xs text-graphite-600 dark:text-graphite-400 bg-chalk-100 dark:bg-graphite-800/80 px-2.5 py-1 rounded-xl italic inline-block mt-1">
-                            &ldquo;{test.notes}&rdquo;
-                          </p>
-                        )}
+                          {test.notes && (
+                            <p className="text-xs text-graphite-600 dark:text-graphite-400 bg-chalk-100 dark:bg-graphite-800/80 px-2.5 py-1 rounded-xl italic inline-block mt-1">
+                              &ldquo;{test.notes}&rdquo;
+                            </p>
+                          )}
+                        </div>
                       </div>
 
                       {/* Valor Numérico y Seguimiento Individual */}
@@ -240,8 +281,34 @@ export default function TestsPage() {
                           </div>
                         </div>
 
-                        {/* Botones de Acción: Editar y Eliminar */}
-                        <div className="flex items-center gap-1">
+                        {/* Botones de Acción: Reordenar, Editar y Eliminar */}
+                        <div className="flex items-center gap-1.5">
+                          {/* Controles para cambiar el orden en el día */}
+                          {dayGroup.items.length > 1 && (
+                            <div className="flex items-center bg-chalk-100 dark:bg-graphite-800/80 p-0.5 rounded-xl border border-chalk-200 dark:border-graphite-700/60">
+                              <button
+                                type="button"
+                                onClick={() => handleMoveTest(dayGroup.items, index, 'up')}
+                                disabled={index === 0}
+                                aria-label={`Subir orden de ${test.title}`}
+                                title="Mover arriba en el orden del día"
+                                className="p-1.5 text-graphite-500 hover:text-terracotta dark:text-graphite-400 dark:hover:text-terracotta-400 rounded-lg hover:bg-white dark:hover:bg-graphite-700 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleMoveTest(dayGroup.items, index, 'down')}
+                                disabled={index === dayGroup.items.length - 1}
+                                aria-label={`Bajar orden de ${test.title}`}
+                                title="Mover abajo en el orden del día"
+                                className="p-1.5 text-graphite-500 hover:text-terracotta dark:text-graphite-400 dark:hover:text-terracotta-400 rounded-lg hover:bg-white dark:hover:bg-graphite-700 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                              </button>
+                            </div>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => setEditingTest(test)}

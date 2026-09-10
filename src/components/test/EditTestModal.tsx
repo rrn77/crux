@@ -58,12 +58,22 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
   if (!test) return null;
 
   const onSubmit = (data: EditTestFormData) => {
+    const originalDate = test.testedAt ? test.testedAt.split('T')[0] : '';
+    let testedAtIso: string;
+    if (data.testedAt === originalDate && test.testedAt) {
+      testedAtIso = test.testedAt;
+    } else {
+      const [year, month, day] = data.testedAt.split('-').map(Number);
+      const now = new Date();
+      testedAtIso = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+    }
+
     const updated = {
       title: data.title.trim(),
       protocol: data.protocol?.trim() || undefined,
       value: data.value,
       unit: data.unit.trim(),
-      testedAt: new Date(data.testedAt).toISOString(),
+      testedAt: testedAtIso,
       notes: data.notes?.trim() || undefined,
     };
 
