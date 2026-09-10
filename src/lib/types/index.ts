@@ -65,15 +65,22 @@ export interface WorkoutSession {
   logs: BlockLog[];
 }
 
+export interface TestSet {
+  setNumber: number;
+  value: number;
+  notes?: string;
+}
+
 export interface TestRecord {
   id: string;
   userId?: string;
   title: string;          // Ej: "Hangboard 20 mm", "Dominada lastrada", "Máximo grado"
   protocol?: string;       // Ej: "7s suspensión monobrazo", "1RM con cinto", "A vista"
-  value: number;          // Valor numérico (ej: 25.5, 8.1, etc.)
+  value: number;          // Mejor marca / Valor principal (ej: 25.5, 8.1, etc.)
   unit: string;           // "kg", "s", "rep", "grado", "%"
   testedAt: string;       // ISO date
   notes?: string;
+  sets?: TestSet[];       // Múltiples series para análisis de fatiga rápida
   createdAt: string;
 }
 

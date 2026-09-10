@@ -3,6 +3,27 @@ import { WorkoutTemplate, WorkoutSession, WorkoutBlock, BlockLog, TestRecord } f
 import { useWorkoutStore } from '../store/workoutStore';
 import { useTestStore } from '../store/testStore';
 
+function serializeNotesAndSets(notes?: string, sets?: import('../types').TestSet[]): string | undefined {
+  if (!sets || sets.length === 0) return notes;
+  return `[SETS]:${JSON.stringify({ notes: notes || '', sets })}`;
+}
+
+function deserializeNotesAndSets(rawNotes?: string): { notes?: string; sets?: import('../types').TestSet[] } {
+  if (!rawNotes) return { notes: undefined, sets: undefined };
+  if (rawNotes.startsWith('[SETS]:')) {
+    try {
+      const parsed = JSON.parse(rawNotes.slice(7));
+      return {
+        notes: parsed.notes || undefined,
+        sets: parsed.sets && parsed.sets.length > 0 ? parsed.sets : undefined,
+      };
+    } catch {
+      return { notes: rawNotes, sets: undefined };
+    }
+  }
+  return { notes: rawNotes, sets: undefined };
+}
+
 class SupabaseSyncService {
   private isSyncing = false;
 
@@ -250,17 +271,21 @@ class SupabaseSyncService {
 
     if (error || !remoteTests) return;
 
-    const formattedTests: TestRecord[] = remoteTests.map((t: Record<string, unknown>) => ({
-      id: t.id as string,
-      userId: t.user_id as string,
-      title: t.title as string,
-      protocol: t.protocol as string | undefined,
-      value: Number(t.value),
-      unit: t.unit as string,
-      testedAt: t.tested_at as string,
-      notes: t.notes as string | undefined,
-      createdAt: t.created_at as string,
-    }));
+    const formattedTests: TestRecord[] = remoteTests.map((t: Record<string, unknown>) => {
+      const { notes, sets } = deserializeNotesAndSets(t.notes as string | undefined);
+      return {
+        id: t.id as string,
+        userId: t.user_id as string,
+        title: t.title as string,
+        protocol: t.protocol as string | undefined,
+        value: Number(t.value),
+        unit: t.unit as string,
+        testedAt: t.tested_at as string,
+        notes,
+        sets,
+        createdAt: t.created_at as string,
+      };
+    });
 
     const localStore = useTestStore.getState();
     const remoteIds = new Set(formattedTests.map((t) => t.id));
@@ -283,6 +308,7 @@ class SupabaseSyncService {
     if (!supabase) return undefined;
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(test.id);
+    const serializedNotes = serializeNotesAndSets(test.notes, test.sets);
 
     try {
       const payload: Record<string, unknown> = {
@@ -292,7 +318,7 @@ class SupabaseSyncService {
         value: test.value,
         unit: test.unit,
         tested_at: test.testedAt,
-        notes: test.notes,
+        notes: serializedNotes,
       };
 
       if (isUuid) {
@@ -328,16 +354,26 @@ class SupabaseSyncService {
   async updateRemoteTest(id: string, testData: Partial<TestRecord>) {
     if (!supabase) return;
     try {
+      const serializedNotes =
+        testData.sets !== undefined || testData.notes !== undefined
+          ? serializeNotesAndSets(testData.notes, testData.sets)
+          : undefined;
+
+      const updatePayload: Record<string, unknown> = {
+        title: testData.title,
+        protocol: testData.protocol,
+        value: testData.value,
+        unit: testData.unit,
+        tested_at: testData.testedAt,
+      };
+
+      if (serializedNotes !== undefined) {
+        updatePayload.notes = serializedNotes;
+      }
+
       await supabase
         .from('tests')
-        .update({
-          title: testData.title,
-          protocol: testData.protocol,
-          value: testData.value,
-          unit: testData.unit,
-          tested_at: testData.testedAt,
-          notes: testData.notes,
-        })
+        .update(updatePayload)
         .eq('id', id);
     } catch (err) {
       console.warn('Error al actualizar test en Supabase:', err);

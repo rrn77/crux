@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Save, X, Edit3 } from 'lucide-react';
-import { TestRecord } from '@/lib/types';
-import { useTestStore } from '@/lib/store/testStore';
+import { Save, X, Edit3, Plus, Trash2, Layers, Zap } from 'lucide-react';
+import { TestRecord, TestSet } from '@/lib/types';
+import { useTestStore, calculateTestFatigue } from '@/lib/store/testStore';
 import { syncService } from '@/lib/supabase/syncService';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -15,13 +15,18 @@ import { Input } from '@/components/ui/Input';
 const editTestSchema = z.object({
   title: z.string().min(1, 'El título del test es obligatorio'),
   protocol: z.string().optional(),
-  value: z.coerce.number({ invalid_type_error: 'Debe ser un número válido' }),
   unit: z.string().min(1, 'La unidad es obligatoria'),
   testedAt: z.string().min(1, 'La fecha es obligatoria'),
   notes: z.string().optional(),
 });
 
 type EditTestFormData = z.infer<typeof editTestSchema>;
+
+interface FormSetItem {
+  id: string;
+  value: string;
+  notes: string;
+}
 
 interface EditTestModalProps {
   isOpen: boolean;
@@ -32,14 +37,20 @@ interface EditTestModalProps {
 export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
   const { updateTest } = useTestStore();
 
+  const [sets, setSets] = useState<FormSetItem[]>([]);
+  const [setsError, setSetsError] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors },
   } = useForm<EditTestFormData>({
     resolver: zodResolver(editTestSchema),
   });
+
+  const selectedUnit = watch('unit') || test?.unit || 'kg';
 
   useEffect(() => {
     if (test) {
@@ -47,17 +58,80 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
       reset({
         title: test.title,
         protocol: test.protocol || '',
-        value: test.value,
         unit: test.unit,
         testedAt: dateIso,
         notes: test.notes || '',
       });
+
+      if (test.sets && test.sets.length > 0) {
+        setSets(
+          test.sets.map((s, idx) => ({
+            id: `set-${idx}-${s.setNumber}`,
+            value: String(s.value),
+            notes: s.notes || '',
+          }))
+        );
+      } else {
+        setSets([
+          {
+            id: 'set-1',
+            value: test.value !== undefined ? String(test.value) : '',
+            notes: '',
+          },
+        ]);
+      }
+      setSetsError(null);
     }
   }, [test, reset]);
+
+  const handleAddSet = () => {
+    const lastSet = sets[sets.length - 1];
+    setSets([
+      ...sets,
+      {
+        id: `set-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+        value: lastSet?.value || '',
+        notes: '',
+      },
+    ]);
+    setSetsError(null);
+  };
+
+  const handleRemoveSet = (index: number) => {
+    if (sets.length <= 1) return;
+    setSets(sets.filter((_, idx) => idx !== index));
+  };
+
+  const handleSetChange = (index: number, field: 'value' | 'notes', val: string) => {
+    const updated = [...sets];
+    updated[index][field] = val;
+    setSets(updated);
+    if (setsError) setSetsError(null);
+  };
+
+  const validTestSets: TestSet[] = useMemo(() => {
+    return sets
+      .map((s, idx) => ({
+        setNumber: idx + 1,
+        value: parseFloat(s.value),
+        notes: s.notes.trim() || undefined,
+      }))
+      .filter((s) => !isNaN(s.value));
+  }, [sets]);
+
+  const fatigueAnalysis = useMemo(() => {
+    if (validTestSets.length <= 1) return null;
+    return calculateTestFatigue(validTestSets);
+  }, [validTestSets]);
 
   if (!test) return null;
 
   const onSubmit = (data: EditTestFormData) => {
+    if (validTestSets.length === 0) {
+      setSetsError('Debes ingresar al menos el valor de una serie');
+      return;
+    }
+
     const originalDate = test.testedAt ? test.testedAt.split('T')[0] : '';
     let testedAtIso: string;
     if (data.testedAt === originalDate && test.testedAt) {
@@ -68,13 +142,16 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
       testedAtIso = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
     }
 
-    const updated = {
+    const peakValue = Math.max(...validTestSets.map((s) => s.value));
+
+    const updated: Partial<TestRecord> = {
       title: data.title.trim(),
       protocol: data.protocol?.trim() || undefined,
-      value: data.value,
+      value: peakValue,
       unit: data.unit.trim(),
       testedAt: testedAtIso,
       notes: data.notes?.trim() || undefined,
+      sets: validTestSets.length > 1 ? validTestSets : undefined,
     };
 
     updateTest(test.id, updated);
@@ -106,28 +183,150 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
 
         <div className="grid grid-cols-2 gap-3">
           <Input
-            type="number"
-            step="any"
-            label="Valor Obtenido"
-            placeholder="Ej: 25"
-            {...register('value')}
-            error={errors.value?.message}
-          />
-
-          <Input
             label="Unidad"
             placeholder="kg, s, rep, grado..."
             {...register('unit')}
             error={errors.unit?.message}
           />
+
+          <Input
+            type="date"
+            label="Fecha de Realización"
+            {...register('testedAt')}
+            error={errors.testedAt?.message}
+          />
         </div>
 
-        <Input
-          type="date"
-          label="Fecha de Realización"
-          {...register('testedAt')}
-          error={errors.testedAt?.message}
-        />
+        {/* Sección de Series e Intentos */}
+        <div className="pt-2 space-y-3">
+          <div className="flex items-center justify-between border-b border-chalk-200 dark:border-graphite-800 pb-2">
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-4 h-4 text-terracotta" />
+              <label className="text-xs font-bold uppercase tracking-wider text-graphite-900 dark:text-graphite-100">
+                Series / Intentos ({sets.length})
+              </label>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddSet}
+              className="text-xs font-bold text-terracotta hover:text-terracotta-700 bg-terracotta-50 dark:bg-terracotta-950/40 px-2.5 py-1 rounded-xl transition-colors flex items-center gap-1 active:scale-95"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Añadir Serie
+            </button>
+          </div>
+
+          {setsError && (
+            <div className="p-2.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl text-xs font-semibold text-red-600 dark:text-red-400">
+              {setsError}
+            </div>
+          )}
+
+          <div className="space-y-2.5">
+            {sets.map((set, idx) => (
+              <div
+                key={set.id}
+                className="bg-chalk-100 dark:bg-graphite-850 p-3 rounded-2xl border border-chalk-200 dark:border-graphite-800 flex flex-col sm:flex-row sm:items-center gap-2.5"
+              >
+                <div className="flex items-center justify-between sm:justify-start gap-2">
+                  <span className="w-7 h-7 rounded-xl bg-white dark:bg-graphite-800 font-mono font-black text-xs text-graphite-700 dark:text-graphite-300 flex items-center justify-center shrink-0 border border-chalk-300 dark:border-graphite-700">
+                    S{idx + 1}
+                  </span>
+                  <span className="text-xs font-bold text-graphite-700 dark:text-graphite-300 sm:hidden">
+                    Serie {idx + 1}
+                  </span>
+                  {sets.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSet(idx)}
+                      aria-label={`Eliminar Serie ${idx + 1}`}
+                      className="p-1.5 text-graphite-400 hover:text-red-600 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors sm:hidden"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="relative">
+                    <input
+                      type="number"
+                      step="any"
+                      placeholder={`Valor (${selectedUnit})`}
+                      value={set.value}
+                      onChange={(e) => handleSetChange(idx, 'value', e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl text-sm font-mono font-bold bg-white dark:bg-graphite-900 text-graphite-900 dark:text-graphite-100 border border-chalk-300 dark:border-graphite-700 focus:outline-none focus:ring-2 focus:ring-terracotta/40 focus:border-terracotta"
+                    />
+                    <span className="absolute right-3 top-2.5 text-xs font-semibold text-graphite-400 pointer-events-none">
+                      {selectedUnit}
+                    </span>
+                  </div>
+
+                  <input
+                    type="text"
+                    placeholder="Sensaciones o RPE (Opcional)"
+                    value={set.notes}
+                    onChange={(e) => handleSetChange(idx, 'notes', e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl text-xs bg-white dark:bg-graphite-900 text-graphite-900 dark:text-graphite-100 border border-chalk-300 dark:border-graphite-700 focus:outline-none focus:ring-2 focus:ring-terracotta/40 focus:border-terracotta"
+                  />
+                </div>
+
+                {sets.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveSet(idx)}
+                    aria-label={`Eliminar Serie ${idx + 1}`}
+                    title="Eliminar serie"
+                    className="hidden sm:flex p-2 text-graphite-400 hover:text-red-600 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Panel de Análisis de Fatiga en Vivo */}
+        {fatigueAnalysis && (
+          <div className="bg-terracotta-50/70 dark:bg-terracotta-950/20 p-4 rounded-2xl border border-terracotta-200 dark:border-terracotta-900/50 space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-terracotta-800 dark:text-terracotta-300 uppercase tracking-wider">
+                <Zap className="w-4 h-4 text-terracotta" />
+                Análisis de Fatiga en Vivo
+              </div>
+              <span className="text-xs font-mono font-bold text-graphite-600 dark:text-graphite-400">
+                {fatigueAnalysis.totalSets} series
+              </span>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-white dark:bg-graphite-900 p-2.5 rounded-xl border border-chalk-200 dark:border-graphite-800">
+                <div className="text-xs text-graphite-500 font-semibold">Pico (Mejor)</div>
+                <div className="font-mono font-black text-base text-graphite-900 dark:text-white">
+                  {fatigueAnalysis.peakValue}{' '}
+                  <span className="text-xs font-normal text-graphite-500">{selectedUnit}</span>
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-graphite-900 p-2.5 rounded-xl border border-chalk-200 dark:border-graphite-800">
+                <div className="text-xs text-graphite-500 font-semibold">Caída Total</div>
+                <div className={`font-mono font-black text-base ${fatigueAnalysis.totalDropPercentage <= 0 ? 'text-red-500' : 'text-moss'}`}>
+                  {fatigueAnalysis.totalDropPercentage > 0 ? '+' : ''}
+                  {fatigueAnalysis.totalDropPercentage}%
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-graphite-900 p-2.5 rounded-xl border border-chalk-200 dark:border-graphite-800">
+                <div className="text-xs text-graphite-500 font-semibold">Media</div>
+                <div className="font-mono font-black text-base text-terracotta">
+                  {fatigueAnalysis.averageValue}{' '}
+                  <span className="text-xs font-normal text-graphite-500">{selectedUnit}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-graphite-600 dark:text-graphite-400 mb-1.5">

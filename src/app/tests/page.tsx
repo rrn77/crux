@@ -16,8 +16,10 @@ import {
   Filter,
   CheckCircle2,
   Dumbbell,
+  Zap,
+  Layers,
 } from 'lucide-react';
-import { useTestStore, calculateTestDelta } from '@/lib/store/testStore';
+import { useTestStore, calculateTestDelta, calculateTestFatigue } from '@/lib/store/testStore';
 import { syncService } from '@/lib/supabase/syncService';
 import { TestRecord } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
@@ -210,126 +212,210 @@ export default function TestsPage() {
                   // Seguimiento por ejercicio: comparar con la prueba ANTERIOR de ese mismo ejercicio
                   const previousTest = getPreviousTest(test.title, test.testedAt);
                   const delta = calculateTestDelta(test.value, previousTest?.value, test.unit);
+                  const fatigue = calculateTestFatigue(test.sets);
 
                   return (
                     <div
                       key={test.id}
-                      className="p-3.5 rounded-2xl hover:bg-chalk-50 dark:hover:bg-graphite-850/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      className="p-3.5 rounded-2xl hover:bg-chalk-50 dark:hover:bg-graphite-850/50 transition-colors flex flex-col gap-3"
                     >
-                      {/* Información del Ejercicio */}
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-2.5">
-                          <span
-                            className="w-6 h-6 rounded-lg bg-chalk-200 dark:bg-graphite-800 text-graphite-700 dark:text-graphite-300 font-mono font-black text-xs flex items-center justify-center shrink-0 border border-chalk-300/60 dark:border-graphite-700"
-                            title={`Ejercicio #${index + 1} del día`}
-                          >
-                            #{index + 1}
-                          </span>
-                          <h3 className="font-bold text-base text-graphite-900 dark:text-graphite-100 truncate">
-                            {test.title}
-                          </h3>
-                        </div>
-
-                        <div className="pl-8.5">
-                          {test.protocol && (
-                            <p className="text-xs text-graphite-500 line-clamp-1">{test.protocol}</p>
-                          )}
-
-                          {test.notes && (
-                            <p className="text-xs text-graphite-600 dark:text-graphite-400 bg-chalk-100 dark:bg-graphite-800/80 px-2.5 py-1 rounded-xl italic inline-block mt-1">
-                              &ldquo;{test.notes}&rdquo;
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Valor Numérico y Seguimiento Individual */}
-                      <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-chalk-100 dark:border-graphite-800">
-                        <div className="flex flex-col items-start sm:items-end">
-                          {/* Marca obtenida */}
-                          <div className="text-xl sm:text-2xl font-black font-mono text-terracotta dark:text-terracotta-400 leading-none">
-                            {test.value}{' '}
-                            <span className="text-xs font-semibold text-graphite-500 font-sans">
-                              {test.unit}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        {/* Información del Ejercicio */}
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span
+                              className="w-6 h-6 rounded-lg bg-chalk-200 dark:bg-graphite-800 text-graphite-700 dark:text-graphite-300 font-mono font-black text-xs flex items-center justify-center shrink-0 border border-chalk-300/60 dark:border-graphite-700"
+                              title={`Ejercicio #${index + 1} del día`}
+                            >
+                              #{index + 1}
                             </span>
+                            <h3 className="font-bold text-base text-graphite-900 dark:text-graphite-100 truncate">
+                              {test.title}
+                            </h3>
+                            {fatigue && fatigue.totalSets > 1 && (
+                              <span className="text-[10px] font-mono font-bold bg-terracotta-100 dark:bg-terracotta-950/40 text-terracotta px-2 py-0.5 rounded-md flex items-center gap-1 border border-terracotta-200 dark:border-terracotta-900/50">
+                                <Zap className="w-3 h-3" />
+                                {fatigue.totalSets} series
+                              </span>
+                            )}
                           </div>
 
-                          {/* Delta frente al anterior de este mismo ejercicio */}
-                          <div className="mt-1">
-                            {delta ? (
-                              delta.isPositive ? (
-                                <span className="text-moss dark:text-moss-400 font-mono font-bold text-[11px] flex items-center gap-0.5 bg-moss-50 dark:bg-moss-900/30 px-2 py-0.5 rounded-md">
-                                  <TrendingUp className="w-3 h-3" />
-                                  {delta.formatted}
-                                </span>
-                              ) : delta.isNeutral ? (
-                                <span className="text-graphite-500 font-mono font-medium text-[11px] flex items-center gap-0.5 bg-chalk-200 dark:bg-graphite-800 px-2 py-0.5 rounded-md">
-                                  <Minus className="w-3 h-3" />
-                                  Sin cambio
-                                </span>
-                              ) : (
-                                <span className="text-red-500 font-mono font-bold text-[11px] flex items-center gap-0.5 bg-red-50 dark:bg-red-950/30 px-2 py-0.5 rounded-md">
-                                  <TrendingDown className="w-3 h-3" />
-                                  {delta.formatted}
-                                </span>
-                              )
-                            ) : (
-                              <span className="text-[10px] text-graphite-400 italic">
-                                Primera referencia
-                              </span>
+                          <div className="pl-8.5">
+                            {test.protocol && (
+                              <p className="text-xs text-graphite-500 line-clamp-1">{test.protocol}</p>
+                            )}
+
+                            {test.notes && (
+                              <p className="text-xs text-graphite-600 dark:text-graphite-400 bg-chalk-100 dark:bg-graphite-800/80 px-2.5 py-1 rounded-xl italic inline-block mt-1">
+                                &ldquo;{test.notes}&rdquo;
+                              </p>
                             )}
                           </div>
                         </div>
 
-                        {/* Botones de Acción: Reordenar, Editar y Eliminar */}
-                        <div className="flex items-center gap-1.5">
-                          {/* Controles para cambiar el orden en el día */}
-                          {dayGroup.items.length > 1 && (
-                            <div className="flex items-center bg-chalk-100 dark:bg-graphite-800/80 p-0.5 rounded-xl border border-chalk-200 dark:border-graphite-700/60">
-                              <button
-                                type="button"
-                                onClick={() => handleMoveTest(dayGroup.items, index, 'up')}
-                                disabled={index === 0}
-                                aria-label={`Subir orden de ${test.title}`}
-                                title="Mover arriba en el orden del día"
-                                className="p-1.5 text-graphite-500 hover:text-terracotta dark:text-graphite-400 dark:hover:text-terracotta-400 rounded-lg hover:bg-white dark:hover:bg-graphite-700 disabled:opacity-20 disabled:pointer-events-none transition-all"
-                              >
-                                <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleMoveTest(dayGroup.items, index, 'down')}
-                                disabled={index === dayGroup.items.length - 1}
-                                aria-label={`Bajar orden de ${test.title}`}
-                                title="Mover abajo en el orden del día"
-                                className="p-1.5 text-graphite-500 hover:text-terracotta dark:text-graphite-400 dark:hover:text-terracotta-400 rounded-lg hover:bg-white dark:hover:bg-graphite-700 disabled:opacity-20 disabled:pointer-events-none transition-all"
-                              >
-                                <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
-                              </button>
+                        {/* Valor Numérico y Seguimiento Individual */}
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-chalk-100 dark:border-graphite-800">
+                          <div className="flex flex-col items-start sm:items-end">
+                            {/* Marca obtenida */}
+                            <div className="text-xl sm:text-2xl font-black font-mono text-terracotta dark:text-terracotta-400 leading-none">
+                              {test.value}{' '}
+                              <span className="text-xs font-semibold text-graphite-500 font-sans">
+                                {test.unit}
+                              </span>
                             </div>
-                          )}
 
-                          <button
-                            type="button"
-                            onClick={() => setEditingTest(test)}
-                            aria-label={`Editar marca de ${test.title}`}
-                            title="Editar test"
-                            className="p-2 text-graphite-400 hover:text-terracotta rounded-xl hover:bg-terracotta-50 dark:hover:bg-terracotta-950/30 transition-colors"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
+                            {/* Delta frente al anterior de este mismo ejercicio */}
+                            <div className="mt-1">
+                              {delta ? (
+                                delta.isPositive ? (
+                                  <span className="text-moss dark:text-moss-400 font-mono font-bold text-[11px] flex items-center gap-0.5 bg-moss-50 dark:bg-moss-900/30 px-2 py-0.5 rounded-md">
+                                    <TrendingUp className="w-3 h-3" />
+                                    {delta.formatted}
+                                  </span>
+                                ) : delta.isNeutral ? (
+                                  <span className="text-graphite-500 font-mono font-medium text-[11px] flex items-center gap-0.5 bg-chalk-200 dark:bg-graphite-800 px-2 py-0.5 rounded-md">
+                                    <Minus className="w-3 h-3" />
+                                    Sin cambio
+                                  </span>
+                                ) : (
+                                  <span className="text-red-500 font-mono font-bold text-[11px] flex items-center gap-0.5 bg-red-50 dark:bg-red-950/30 px-2 py-0.5 rounded-md">
+                                    <TrendingDown className="w-3 h-3" />
+                                    {delta.formatted}
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-[10px] text-graphite-400 italic">
+                                  Primera referencia
+                                </span>
+                              )}
+                            </div>
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={() => setDeletingTest(test)}
-                            aria-label={`Eliminar marca de ${test.title}`}
-                            title="Eliminar test"
-                            className="p-2 text-graphite-400 hover:text-red-600 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Botones de Acción: Reordenar, Editar y Eliminar */}
+                          <div className="flex items-center gap-1.5">
+                            {/* Controles para cambiar el orden en el día */}
+                            {dayGroup.items.length > 1 && (
+                              <div className="flex items-center bg-chalk-100 dark:bg-graphite-800/80 p-0.5 rounded-xl border border-chalk-200 dark:border-graphite-700/60">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveTest(dayGroup.items, index, 'up')}
+                                  disabled={index === 0}
+                                  aria-label={`Subir orden de ${test.title}`}
+                                  title="Mover arriba en el orden del día"
+                                  className="p-1.5 text-graphite-500 hover:text-terracotta dark:text-graphite-400 dark:hover:text-terracotta-400 rounded-lg hover:bg-white dark:hover:bg-graphite-700 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveTest(dayGroup.items, index, 'down')}
+                                  disabled={index === dayGroup.items.length - 1}
+                                  aria-label={`Bajar orden de ${test.title}`}
+                                  title="Mover abajo en el orden del día"
+                                  className="p-1.5 text-graphite-500 hover:text-terracotta dark:text-graphite-400 dark:hover:text-terracotta-400 rounded-lg hover:bg-white dark:hover:bg-graphite-700 disabled:opacity-20 disabled:pointer-events-none transition-all"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+                                </button>
+                              </div>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => setEditingTest(test)}
+                              aria-label={`Editar marca de ${test.title}`}
+                              title="Editar test"
+                              className="p-2 text-graphite-400 hover:text-terracotta rounded-xl hover:bg-terracotta-50 dark:hover:bg-terracotta-950/30 transition-colors"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setDeletingTest(test)}
+                              aria-label={`Eliminar marca de ${test.title}`}
+                              title="Eliminar test"
+                              className="p-2 text-graphite-400 hover:text-red-600 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Desglose de Series y Curva de Fatiga Rápida (si tiene más de 1 serie) */}
+                      {fatigue && fatigue.totalSets > 1 && (
+                        <div className="bg-chalk-100/90 dark:bg-graphite-850 p-3 rounded-2xl border border-chalk-200/80 dark:border-graphite-800 space-y-2.5">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                            <span className="font-bold text-graphite-800 dark:text-graphite-200 flex items-center gap-1.5">
+                              <Zap className="w-3.5 h-3.5 text-terracotta" />
+                              Impacto de Fatiga Rápida (S1 ➔ S{fatigue.totalSets})
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] text-graphite-500 font-medium">
+                                Media: <strong className="font-mono text-graphite-800 dark:text-graphite-200">{fatigue.averageValue} {test.unit}</strong>
+                              </span>
+                              <span
+                                className={`font-mono font-black text-xs px-2 py-0.5 rounded-lg ${
+                                  fatigue.totalDropPercentage < 0
+                                    ? 'bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400'
+                                    : 'bg-moss-100 dark:bg-moss-950/50 text-moss'
+                                }`}
+                              >
+                                {fatigue.totalDropPercentage > 0 ? '+' : ''}
+                                {fatigue.totalDropPercentage}% ({fatigue.totalDropAbsolute > 0 ? '-' : '+'}{Math.abs(fatigue.totalDropAbsolute)} {test.unit})
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2">
+                            {fatigue.setsAnalysis.map((s, idx) => (
+                              <div
+                                key={s.setNumber}
+                                className="bg-white dark:bg-graphite-900 p-2 rounded-xl border border-chalk-200 dark:border-graphite-800 space-y-1"
+                              >
+                                <div className="flex items-center justify-between text-[11px] font-bold">
+                                  <span className="text-graphite-500">Serie {s.setNumber}</span>
+                                  {idx > 0 ? (
+                                    <span
+                                      className={`font-mono text-[10px] font-bold ${
+                                        s.percentageDrop < 0 ? 'text-red-500' : 'text-moss'
+                                      }`}
+                                    >
+                                      {s.percentageDrop > 0 ? '+' : ''}
+                                      {s.percentageDrop}%
+                                    </span>
+                                  ) : (
+                                    <span className="text-[10px] text-terracotta font-semibold">100%</span>
+                                  )}
+                                </div>
+                                <div className="text-sm font-black font-mono text-graphite-900 dark:text-white">
+                                  {s.value}{' '}
+                                  <span className="text-[10px] font-medium text-graphite-400">{test.unit}</span>
+                                </div>
+                                <div className="w-full bg-chalk-200 dark:bg-graphite-800 h-1.5 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${
+                                      idx === 0
+                                        ? 'bg-terracotta'
+                                        : s.percentageOfFirst >= 90
+                                        ? 'bg-moss'
+                                        : s.percentageOfFirst >= 75
+                                        ? 'bg-amber-500'
+                                        : 'bg-red-500'
+                                    }`}
+                                    style={{ width: `${Math.min(100, Math.max(10, s.percentageOfFirst))}%` }}
+                                  />
+                                </div>
+                                {s.notes && (
+                                  <p className="text-[10px] text-graphite-500 truncate italic">
+                                    {s.notes}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

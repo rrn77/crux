@@ -124,3 +124,68 @@ export function calculateTestDelta(
     formatted,
   };
 }
+
+export interface SetFatigueAnalysis {
+  setNumber: number;
+  value: number;
+  percentageOfFirst: number;
+  deltaFromFirst: number;
+  percentageDrop: number;
+  notes?: string;
+}
+
+export interface TestFatigueSummary {
+  totalSets: number;
+  peakValue: number;
+  firstValue: number;
+  lastValue: number;
+  averageValue: number;
+  totalDropAbsolute: number;
+  totalDropPercentage: number;
+  setsAnalysis: SetFatigueAnalysis[];
+}
+
+/**
+ * Helper para calcular la fatiga acumulada entre series de un mismo test
+ */
+export function calculateTestFatigue(sets?: import('../types').TestSet[]): TestFatigueSummary | null {
+  if (!sets || sets.length === 0) return null;
+
+  const firstValue = sets[0].value;
+  const lastValue = sets[sets.length - 1].value;
+  const peakValue = Math.max(...sets.map((s) => s.value));
+  const sum = sets.reduce((acc, s) => acc + s.value, 0);
+  const averageValue = Math.round((sum / sets.length) * 10) / 10;
+
+  const totalDropAbsolute = Math.round((firstValue - lastValue) * 10) / 10;
+  const totalDropPercentage =
+    firstValue !== 0 ? Math.round(((lastValue - firstValue) / firstValue) * 1000) / 10 : 0;
+
+  const setsAnalysis: SetFatigueAnalysis[] = sets.map((s) => {
+    const deltaFromFirst = Math.round((s.value - firstValue) * 10) / 10;
+    const percentageOfFirst =
+      firstValue !== 0 ? Math.round((s.value / firstValue) * 1000) / 10 : 100;
+    const percentageDrop =
+      firstValue !== 0 ? Math.round(((s.value - firstValue) / firstValue) * 1000) / 10 : 0;
+
+    return {
+      setNumber: s.setNumber,
+      value: s.value,
+      percentageOfFirst,
+      deltaFromFirst,
+      percentageDrop,
+      notes: s.notes,
+    };
+  });
+
+  return {
+    totalSets: sets.length,
+    peakValue,
+    firstValue,
+    lastValue,
+    averageValue,
+    totalDropAbsolute,
+    totalDropPercentage,
+    setsAnalysis,
+  };
+}
