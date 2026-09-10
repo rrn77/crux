@@ -2,36 +2,25 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   BookOpen,
   Plus,
-  Play,
-  Clock,
   Trash2,
   Edit2,
   ArrowLeft,
   CalendarPlus,
 } from 'lucide-react';
 import { useWorkoutStore } from '@/lib/store/workoutStore';
-import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
-import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
-import { WorkoutTemplate } from '@/lib/types';
+import { BLOCK_TYPE_CONFIG } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function TemplatesPage() {
-  const router = useRouter();
   const { templates, deleteTemplate } = useWorkoutStore();
-  const { startWorkout } = useActiveWorkoutStore();
 
   const [deletingTemplate, setDeletingTemplate] = useState<{ id: string; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleStartTemplate = (template: WorkoutTemplate) => {
-    startWorkout(template.title, template.blocks, template.id);
-    router.push('/workout/active');
-  };
 
   const handleConfirmDelete = async () => {
     if (!deletingTemplate) return;
@@ -83,7 +72,8 @@ export default function TemplatesPage() {
       {templates.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {templates.map((tpl) => {
-            const firstBlock = tpl.blocks[0];
+            const typeConfig = BLOCK_TYPE_CONFIG[tpl.type];
+            const IconComponent = typeConfig.icon;
 
             return (
               <div
@@ -96,41 +86,19 @@ export default function TemplatesPage() {
                       <h2 className="font-bold text-base sm:text-lg text-graphite-900 dark:text-graphite-100 truncate">
                         {tpl.title}
                       </h2>
-                      {firstBlock && (
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-moss bg-moss-50 dark:bg-moss-950/40 px-2 py-0.5 rounded-md inline-block mt-0.5">
-                          {firstBlock.type === 'intervals'
-                            ? 'Intervalos'
-                            : firstBlock.type === 'problems'
-                            ? 'Bloques / Búlder'
-                            : firstBlock.type === 'reps'
-                            ? 'Repeticiones'
-                            : firstBlock.type === 'attempts'
-                            ? 'Intentos'
-                            : 'Libre'}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-graphite-700 dark:text-graphite-300 bg-chalk-100 dark:bg-graphite-800 px-2.5 py-1 rounded-xl shrink-0">
-                      <Clock className="w-3.5 h-3.5 text-terracotta" />
-                      {formatDurationHuman(tpl.estimatedDurationSeconds)}
+                      <Badge variant={typeConfig.variant} size="sm" className="mt-0.5">
+                        <IconComponent className="w-3 h-3" />
+                        {typeConfig.label}
+                      </Badge>
                     </div>
                   </div>
 
-                  {/* Resumen del Ejercicio */}
-                  <div className="bg-chalk-100 dark:bg-graphite-850 p-3 rounded-2xl border border-chalk-200 dark:border-graphite-800 space-y-1 text-xs">
-                    {firstBlock ? (
-                      <div className="font-mono font-bold text-graphite-800 dark:text-graphite-200">
-                        {formatBlockSummary(firstBlock)}
-                      </div>
-                    ) : (
-                      <div className="text-graphite-500">Sin configuración de bloques</div>
-                    )}
-
-                    {tpl.description && (
-                      <p className="text-[11px] text-graphite-500 italic pt-0.5">{tpl.description}</p>
-                    )}
-                  </div>
+                  {/* Indicaciones Técnicas */}
+                  {tpl.description && (
+                    <div className="bg-chalk-100 dark:bg-graphite-850 p-3 rounded-2xl border border-chalk-200 dark:border-graphite-800 text-xs">
+                      <p className="text-graphite-600 dark:text-graphite-300 italic">{tpl.description}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Acciones */}
@@ -155,21 +123,11 @@ export default function TemplatesPage() {
                     </Link>
 
                     <Link href={`/workouts/new?templateId=${tpl.id}`}>
-                      <Button variant="outline" size="sm" className="text-xs px-2.5 py-1" title="Usar para planificar una sesión">
-                        <CalendarPlus className="w-3.5 h-3.5 mr-1 text-terracotta" />
+                      <Button variant="primary" size="sm" className="text-xs px-3 py-1" title="Prescribir y añadir a una sesión">
+                        <CalendarPlus className="w-3.5 h-3.5 mr-1" />
                         Planificar
                       </Button>
                     </Link>
-
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      className="text-xs px-3 py-1"
-                      onClick={() => handleStartTemplate(tpl)}
-                    >
-                      <Play className="w-3.5 h-3.5 mr-1 fill-current" />
-                      Entrenar
-                    </Button>
                   </div>
                 </div>
               </div>

@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Calendar,
   CalendarCheck,
+  CalendarPlus,
   CheckCircle2,
   Dumbbell,
   Layers,
@@ -24,11 +25,11 @@ import {
 import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { useTestStore } from '@/lib/store/testStore';
-import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
+import { formatDurationHuman, formatBlockSummary, BLOCK_TYPE_CONFIG } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { WorkoutTemplate, WorkoutSession } from '@/lib/types';
+import { WorkoutSession } from '@/lib/types';
 
 export default function HomePage() {
   const router = useRouter();
@@ -132,15 +133,6 @@ export default function HomePage() {
       todaySession.scheduledDate
     );
     router.push('/workout/active');
-  };
-
-  const handleStartTemplate = (template: WorkoutTemplate, startImmediately = true) => {
-    if (startImmediately) {
-      startWorkout(template.title, template.blocks, template.id, undefined, todayIso);
-      router.push('/workout/active');
-    } else {
-      router.push(`/workouts/new?templateId=${template.id}&date=${todayIso}`);
-    }
   };
 
   const recentSessions = useMemo(() => {
@@ -482,9 +474,9 @@ export default function HomePage() {
                     <h3 className="font-bold text-sm text-graphite-900 dark:text-graphite-100 truncate">
                       {tpl.title}
                     </h3>
-                    <span className="text-[11px] font-mono font-semibold text-graphite-500 shrink-0">
-                      {formatDurationHuman(tpl.estimatedDurationSeconds)}
-                    </span>
+                    <Badge variant={BLOCK_TYPE_CONFIG[tpl.type].variant} size="sm" className="shrink-0">
+                      {BLOCK_TYPE_CONFIG[tpl.type].label}
+                    </Badge>
                   </div>
                   {tpl.description && (
                     <p className="text-xs text-graphite-500 dark:text-graphite-400 line-clamp-2">
@@ -493,25 +485,13 @@ export default function HomePage() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-chalk-200 dark:border-graphite-800">
-                  <span className="text-[11px] font-medium text-graphite-500">
-                    {tpl.blocks[0] ? formatBlockSummary(tpl.blocks[0]) : '1 bloque'}
-                  </span>
-                  <div className="flex items-center gap-1.5 ml-auto">
-                    <Link href={`/workouts/new?templateId=${tpl.id}&date=${todayIso}`}>
-                      <Button variant="outline" size="sm">
-                        Planificar
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleStartTemplate(tpl, true)}
-                    >
-                      <Play className="w-3.5 h-3.5 mr-1 fill-current" />
-                      Entrenar
+                <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-chalk-200 dark:border-graphite-800">
+                  <Link href={`/workouts/new?templateId=${tpl.id}&date=${todayIso}`}>
+                    <Button variant="primary" size="sm">
+                      <CalendarPlus className="w-3.5 h-3.5 mr-1" />
+                      Planificar
                     </Button>
-                  </div>
+                  </Link>
                 </div>
               </div>
             ))}

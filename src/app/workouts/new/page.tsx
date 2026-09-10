@@ -16,14 +16,14 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  SlidersHorizontal,
 } from 'lucide-react';
 import { WorkoutBlock, WorkoutTemplate } from '@/lib/types';
 import { useWorkoutStore, getLocalDateIsoString, generateUUID } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
-import { calculateTotalEstimatedDuration, formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
+import { calculateTotalEstimatedDuration, formatDurationHuman, BLOCK_TYPE_CONFIG } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Badge } from '@/components/ui/Badge';
 import { BlockCard } from '@/components/workout/BlockCard';
 import { BlockFormInline } from '@/components/workout/BlockFormInline';
 
@@ -65,19 +65,20 @@ function WorkoutBuilderContent() {
       }
     }
 
-    // Cargar plantilla si viene en la query URL (?templateId=xxx)
+    // Plantilla precargada vía query URL (?templateId=xxx): abrir directamente su prescripción
     if (templateIdParam) {
       const tpl = getTemplateById(templateIdParam);
       if (tpl) {
-        setSessionTitle(tpl.title);
-        setSessionDescription(tpl.description || '');
-        setBlocks(
-          tpl.blocks.map((b, idx) => ({
-            ...b,
-            id: generateUUID(),
-            position: idx,
-          }))
-        );
+        setEditingBlock({
+          id: generateUUID(),
+          templateId: tpl.id,
+          templateTitle: tpl.title,
+          position: 0,
+          title: tpl.title,
+          type: tpl.type,
+          notes: tpl.description,
+        });
+        setIsInlineFormOpen(true);
       }
     }
   }, [sessionIdParam, templateIdParam, getSessionById, getTemplateById]);
@@ -153,48 +154,18 @@ function WorkoutBuilderContent() {
     setEditingBlock(null);
   };
 
-  // Al seleccionar una plantilla: Abrir el configurador inline para ajustar series, reps, lastre y notas
-  const handleSelectTemplateForCustomization = (template: WorkoutTemplate) => {
-    const firstBlock = template.blocks[0];
-    const initialForCustomization: WorkoutBlock = firstBlock
-      ? {
-          ...firstBlock,
-          id: generateUUID(),
-          templateId: template.id,
-          templateTitle: template.title,
-          position: blocks.length,
-          title: firstBlock.title || template.title,
-          notes: firstBlock.notes || template.description || undefined,
-        }
-      : {
-          id: generateUUID(),
-          templateId: template.id,
-          templateTitle: template.title,
-          position: blocks.length,
-          title: template.title,
-          type: 'intervals',
-          sets: 4,
-          repetitions: 5,
-          restDurationSeconds: 120,
-          notes: template.description,
-        };
-
-    setEditingBlock(initialForCustomization);
-    setIsInlineFormOpen(true);
-    setIsTemplatePanelOpen(false);
-  };
-
-  // Añadir directamente sin modificar valores
-  const handleAddTemplateDirectly = (template: WorkoutTemplate) => {
-    const newBlocks: WorkoutBlock[] = template.blocks.map((b, idx) => ({
-      ...b,
+  // Al seleccionar una plantilla: abrir el formulario de prescripción (siempre en blanco)
+  const handleSelectTemplate = (template: WorkoutTemplate) => {
+    setEditingBlock({
       id: generateUUID(),
-      position: blocks.length + idx,
-    }));
-    setBlocks((prev) => [...prev, ...newBlocks]);
-    if (blocks.length === 0) {
-      setSessionTitle(template.title);
-    }
+      templateId: template.id,
+      templateTitle: template.title,
+      position: blocks.length,
+      title: template.title,
+      type: template.type,
+      notes: template.description,
+    });
+    setIsInlineFormOpen(true);
     setIsTemplatePanelOpen(false);
   };
 
@@ -334,7 +305,7 @@ function WorkoutBuilderContent() {
                   Tus Plantillas de Ejercicios ({templates.length})
                 </h3>
                 <p className="text-[11px] text-graphite-500">
-                  Toca una plantilla para ajustar sus series y descansos antes de añadirla
+                  Toca una plantilla para prescribir series, descanso y carga antes de añadirla
                 </p>
               </div>
             </div>
@@ -349,47 +320,41 @@ function WorkoutBuilderContent() {
 
           {templates.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-80 overflow-y-auto pr-1">
-              {templates.map((tpl) => (
-                <div
-                  key={tpl.id}
-                  className="p-3.5 rounded-2xl bg-white dark:bg-graphite-900 border border-moss-200 dark:border-graphite-800 flex flex-col justify-between gap-2.5 shadow-2xs hover:border-moss-400 transition-all"
-                >
-                  <div>
-                    <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
-                      {tpl.title}
+              {templates.map((tpl) => {
+                const typeConfig = BLOCK_TYPE_CONFIG[tpl.type];
+                return (
+                  <div
+                    key={tpl.id}
+                    className="p-3.5 rounded-2xl bg-white dark:bg-graphite-900 border border-moss-200 dark:border-graphite-800 flex flex-col justify-between gap-2.5 shadow-2xs hover:border-moss-400 transition-all"
+                  >
+                    <div>
+                      <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
+                        {tpl.title}
+                      </div>
+                      <Badge variant={typeConfig.variant} size="sm" className="mt-1">
+                        <typeConfig.icon className="w-3 h-3" />
+                        {typeConfig.label}
+                      </Badge>
+                      {tpl.description && (
+                        <p className="text-[11px] text-graphite-400 line-clamp-1 italic mt-1">
+                          {tpl.description}
+                        </p>
+                      )}
                     </div>
-                    <div className="text-xs text-graphite-500 font-medium mt-0.5">
-                      {tpl.blocks[0] ? formatBlockSummary(tpl.blocks[0]) : 'Sin prescripción'}
+
+                    <div className="flex items-center justify-end pt-1 border-t border-chalk-100 dark:border-graphite-800">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => handleSelectTemplate(tpl)}
+                        className="text-[11px] py-1 px-2.5"
+                      >
+                        Añadir
+                      </Button>
                     </div>
-                    {tpl.description && (
-                      <p className="text-[11px] text-graphite-400 line-clamp-1 italic mt-0.5">
-                        {tpl.description}
-                      </p>
-                    )}
                   </div>
-
-                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-chalk-100 dark:border-graphite-800">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleAddTemplateDirectly(tpl)}
-                      className="text-[11px] py-1 px-2.5"
-                    >
-                      + Añadir Directo
-                    </Button>
-
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => handleSelectTemplateForCustomization(tpl)}
-                      className="text-[11px] py-1 px-2.5"
-                    >
-                      <SlidersHorizontal className="w-3.5 h-3.5 mr-1" />
-                      Ajustar y Añadir
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="p-4 text-center bg-white dark:bg-graphite-900 rounded-2xl border border-moss-200 dark:border-graphite-800 space-y-2">

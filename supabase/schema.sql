@@ -16,44 +16,26 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 1. Tabla: workout_templates (Plantillas de entrenamiento)
+-- 1. Tabla: workout_templates (Plantillas de ejercicio: solo identidad, sin prescripción)
+-- Tipos de ejercicio admitidos:
+-- 'intervals' (Series + Tiempo Trabajo + Tiempo Descanso)
+-- 'reps' (Series + Repeticiones + Tiempo Descanso)
+-- 'attempts' (Intentos + Tiempo Descanso)
+-- 'problems' (Bloques + Movimientos + Intentos por bloque + Descanso)
+-- 'free' (Registro libre con objetivo y notas)
+-- La prescripción (series, descansos, carga...) se decide al añadir la plantilla a una
+-- sesión (ver workout_sessions.notes), nunca vive en la plantilla.
 CREATE TABLE IF NOT EXISTS public.workout_templates (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('intervals', 'reps', 'attempts', 'problems', 'free')),
     description TEXT,
-    estimated_duration_seconds INTEGER NOT NULL DEFAULT 0,
-    is_default BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 2. Tabla: workout_blocks (Bloques de entrenamiento configurables)
--- Tipos de bloque admitidos:
--- 'intervals' (Series + Tiempo Trabajo + Tiempo Descanso)
--- 'reps' (Series + Repeticiones + Tiempo Descanso)
--- 'attempts' (Intentos + Tiempo Descanso)
--- 'problems' (Problemas + Movimientos opcionales + Intentos por problema + Descanso)
--- 'free' (Registro libre con objetivo y notas)
-CREATE TABLE IF NOT EXISTS public.workout_blocks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    template_id UUID REFERENCES public.workout_templates(id) ON DELETE CASCADE,
-    position INTEGER NOT NULL DEFAULT 0,
-    title TEXT NOT NULL,
-    type TEXT NOT NULL CHECK (type IN ('intervals', 'reps', 'attempts', 'problems', 'free')),
-    sets INTEGER,
-    work_duration_seconds INTEGER,
-    rest_duration_seconds INTEGER,
-    repetitions INTEGER,
-    attempts INTEGER,
-    problems INTEGER,
-    movements INTEGER,
-    target TEXT,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
-);
-
--- 3. Tabla: workout_sessions (Sesiones de entrenamiento ejecutadas)
+-- 2. Tabla: workout_sessions (Sesiones de entrenamiento ejecutadas)
 CREATE TABLE IF NOT EXISTS public.workout_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -68,7 +50,7 @@ CREATE TABLE IF NOT EXISTS public.workout_sessions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 4. Tabla: block_logs (Registro detallado de ejecución por bloque)
+-- 3. Tabla: block_logs (Registro detallado de ejecución por bloque)
 CREATE TABLE IF NOT EXISTS public.block_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     session_id UUID REFERENCES public.workout_sessions(id) ON DELETE CASCADE,
@@ -85,7 +67,7 @@ CREATE TABLE IF NOT EXISTS public.block_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- 5. Tabla: tests (Tests físicos y marcas de progreso)
+-- 4. Tabla: tests (Tests físicos y marcas de progreso)
 CREATE TABLE IF NOT EXISTS public.tests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -102,7 +84,6 @@ CREATE TABLE IF NOT EXISTS public.tests (
 -- ÍNDICES PARA RENDIMIENTO
 -- =========================================================
 CREATE INDEX IF NOT EXISTS idx_workout_templates_user_id ON public.workout_templates(user_id);
-CREATE INDEX IF NOT EXISTS idx_workout_blocks_template_id ON public.workout_blocks(template_id);
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_id ON public.workout_sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_started_at ON public.workout_sessions(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_block_logs_session_id ON public.block_logs(session_id);
@@ -115,7 +96,6 @@ CREATE INDEX IF NOT EXISTS idx_tests_title_tested_at ON public.tests(user_id, ti
 -- =========================================================
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_templates ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.workout_blocks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.block_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tests ENABLE ROW LEVEL SECURITY;
@@ -134,9 +114,9 @@ CREATE POLICY "Users can insert their own profile"
     WITH CHECK (auth.uid() = id);
 
 -- Políticas para workout_templates
-CREATE POLICY "Users can view their own templates or default templates"
+CREATE POLICY "Users can view their own templates"
     ON public.workout_templates FOR SELECT
-    USING (auth.uid() = user_id OR is_default = TRUE);
+    USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can insert their own templates"
     ON public.workout_templates FOR INSERT
@@ -150,47 +130,6 @@ CREATE POLICY "Users can update their own templates"
 CREATE POLICY "Users can delete their own templates"
     ON public.workout_templates FOR DELETE
     USING (auth.uid() = user_id);
-
--- Políticas para workout_blocks
-CREATE POLICY "Users can view blocks of accessible templates"
-    ON public.workout_blocks FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workout_templates
-            WHERE public.workout_templates.id = public.workout_blocks.template_id
-            AND (public.workout_templates.user_id = auth.uid() OR public.workout_templates.is_default = TRUE)
-        )
-    );
-
-CREATE POLICY "Users can insert blocks in their templates"
-    ON public.workout_blocks FOR INSERT
-    WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.workout_templates
-            WHERE public.workout_templates.id = public.workout_blocks.template_id
-            AND public.workout_templates.user_id = auth.uid()
-        )
-    );
-
-CREATE POLICY "Users can update blocks in their templates"
-    ON public.workout_blocks FOR UPDATE
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workout_templates
-            WHERE public.workout_templates.id = public.workout_blocks.template_id
-            AND public.workout_templates.user_id = auth.uid()
-        )
-    );
-
-CREATE POLICY "Users can delete blocks from their templates"
-    ON public.workout_blocks FOR DELETE
-    USING (
-        EXISTS (
-            SELECT 1 FROM public.workout_templates
-            WHERE public.workout_templates.id = public.workout_blocks.template_id
-            AND public.workout_templates.user_id = auth.uid()
-        )
-    );
 
 -- Políticas para workout_sessions
 CREATE POLICY "Users can view their own workout sessions"

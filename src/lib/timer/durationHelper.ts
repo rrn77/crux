@@ -1,4 +1,49 @@
-import type { WorkoutBlock } from '../types/index';
+import { Timer, Repeat, Layers, Target, FileText, type LucideIcon } from 'lucide-react';
+import type { WorkoutBlock, BlockType } from '../types/index';
+
+/**
+ * Configuración compartida de los 5 tipos de ejercicio (identidad de la plantilla).
+ * Usada por el selector de tipo en plantillas/ejercicios sueltos y por las tarjetas de bloque.
+ */
+export interface BlockTypeConfigEntry {
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  variant: 'terracotta' | 'moss' | 'warning' | 'neutral' | 'outline';
+}
+
+export const BLOCK_TYPE_CONFIG: Record<BlockType, BlockTypeConfigEntry> = {
+  intervals: {
+    label: 'Intervalos',
+    description: 'Series por tiempo de trabajo y descanso',
+    icon: Timer,
+    variant: 'terracotta',
+  },
+  reps: {
+    label: 'Repeticiones',
+    description: 'Series por número de repeticiones',
+    icon: Repeat,
+    variant: 'warning',
+  },
+  problems: {
+    label: 'Bloques',
+    description: 'Bloques de búlder con movimientos e intentos',
+    icon: Layers,
+    variant: 'moss',
+  },
+  attempts: {
+    label: 'Intentos',
+    description: 'Intentos libres con descanso entre pegues',
+    icon: Target,
+    variant: 'neutral',
+  },
+  free: {
+    label: 'Libre',
+    description: 'Registro libre sin temporizador',
+    icon: FileText,
+    variant: 'outline',
+  },
+};
 
 /**
  * Calcula la duración estimada en segundos de un bloque/ejercicio individual

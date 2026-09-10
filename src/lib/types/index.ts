@@ -27,10 +27,8 @@ export interface WorkoutTemplate {
   id: string;
   userId?: string;
   title: string;
+  type: BlockType;
   description?: string;
-  estimatedDurationSeconds: number;
-  blocks: WorkoutBlock[];
-  isDefault?: boolean;
   createdAt: string;
   updatedAt: string;
 }

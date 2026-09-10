@@ -6,36 +6,22 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import {
-  ArrowLeft,
-  BookOpen,
-  Sparkles,
-  Timer,
-  Repeat,
-  Clock,
-  Check,
-  X,
-} from 'lucide-react';
-import { useWorkoutStore, generateUUID } from '@/lib/store/workoutStore';
-import { WorkoutBlock, WorkoutTemplate } from '@/lib/types';
-import { calculateTotalEstimatedDuration, formatBlockSummary } from '@/lib/timer/durationHelper';
+import { ArrowLeft, BookOpen, Sparkles, Check, X } from 'lucide-react';
+import { useWorkoutStore } from '@/lib/store/workoutStore';
+import { WorkoutTemplate, BlockType } from '@/lib/types';
+import { BLOCK_TYPE_CONFIG } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
 const templateSchema = z.object({
-  title: z.string().min(1, 'El nombre de la plantilla es obligatorio'),
-  executionMode: z.enum(['time', 'reps']),
-  workMinutes: z.coerce.number().min(0).default(0),
-  workSeconds: z.coerce.number().min(0).max(59).default(0),
-  defaultReps: z.coerce.number().min(1).default(5),
-  restBetweenRepsMinutes: z.coerce.number().min(0).default(0),
-  restBetweenRepsSeconds: z.coerce.number().min(0).max(59).default(0),
-  restBetweenSetsMinutes: z.coerce.number().min(0).default(2),
-  restBetweenSetsSeconds: z.coerce.number().min(0).max(59).default(0),
+  title: z.string().min(1, 'El nombre del ejercicio es obligatorio'),
+  type: z.enum(['intervals', 'reps', 'problems', 'attempts', 'free']),
   description: z.string().optional(),
 });
 
 type TemplateFormData = z.infer<typeof templateSchema>;
+
+const BLOCK_TYPES: BlockType[] = ['intervals', 'reps', 'problems', 'attempts', 'free'];
 
 function TemplateEditorContent() {
   const router = useRouter();
@@ -57,39 +43,21 @@ function TemplateEditorContent() {
     resolver: zodResolver(templateSchema),
     defaultValues: {
       title: '',
-      executionMode: 'time',
-      workMinutes: 0,
-      workSeconds: 10,
-      defaultReps: 5,
-      restBetweenRepsMinutes: 0,
-      restBetweenRepsSeconds: 3,
-      restBetweenSetsMinutes: 2,
-      restBetweenSetsSeconds: 0,
+      type: 'intervals',
       description: '',
     },
   });
 
-  const executionMode = watch('executionMode');
-  const watchedValues = watch();
+  const selectedType = watch('type');
 
   useEffect(() => {
     if (templateIdParam) {
       const existing = getTemplateById(templateIdParam);
       if (existing) {
         setEditingTemplate(existing);
-        const block = existing.blocks[0];
-        const isTimeBased = Boolean(block?.workDurationSeconds && block.workDurationSeconds > 0);
-
         reset({
           title: existing.title,
-          executionMode: isTimeBased ? 'time' : 'reps',
-          workMinutes: Math.floor((block?.workDurationSeconds || 0) / 60),
-          workSeconds: (block?.workDurationSeconds || 0) % 60,
-          defaultReps: block?.repetitions || 5,
-          restBetweenRepsMinutes: Math.floor((block?.restBetweenRepsSeconds || 0) / 60),
-          restBetweenRepsSeconds: (block?.restBetweenRepsSeconds || 0) % 60,
-          restBetweenSetsMinutes: Math.floor((block?.restDurationSeconds || 120) / 60),
-          restBetweenSetsSeconds: (block?.restDurationSeconds || 120) % 60,
+          type: existing.type,
           description: existing.description || '',
         });
       }
@@ -97,42 +65,18 @@ function TemplateEditorContent() {
   }, [templateIdParam, getTemplateById, reset]);
 
   const onSubmit = async (data: TemplateFormData) => {
-    const totalWorkSec = data.executionMode === 'time'
-      ? (data.workMinutes || 0) * 60 + (data.workSeconds || 0)
-      : undefined;
-
-    const totalRestBetweenRepsSec = (data.restBetweenRepsMinutes || 0) * 60 + (data.restBetweenRepsSeconds || 0);
-    const totalRestBetweenSetsSec = (data.restBetweenSetsMinutes || 0) * 60 + (data.restBetweenSetsSeconds || 0);
-
-    const block: WorkoutBlock = {
-      id: editingTemplate?.blocks[0]?.id || generateUUID(),
-      position: 0,
-      title: data.title.trim(),
-      type: data.executionMode === 'time' ? 'intervals' : 'reps',
-      sets: 4, // Default series base
-      repetitions: data.executionMode === 'reps' ? data.defaultReps : (totalRestBetweenRepsSec > 0 ? 6 : undefined),
-      workDurationSeconds: totalWorkSec,
-      restBetweenRepsSeconds: totalRestBetweenRepsSec > 0 ? totalRestBetweenRepsSec : undefined,
-      restDurationSeconds: totalRestBetweenSetsSec,
-      notes: data.description?.trim() || undefined,
-    };
-
-    const estimatedSec = calculateTotalEstimatedDuration([block]);
-
     if (editingTemplate) {
       await updateTemplate(editingTemplate.id, {
         title: data.title.trim(),
+        type: data.type,
         description: data.description?.trim() || undefined,
-        estimatedDurationSeconds: estimatedSec,
-        blocks: [block],
       });
       setSuccessMessage('¡Plantilla actualizada!');
     } else {
       await addTemplate({
         title: data.title.trim(),
+        type: data.type,
         description: data.description?.trim() || undefined,
-        estimatedDurationSeconds: estimatedSec,
-        blocks: [block],
       });
       setSuccessMessage('¡Plantilla creada!');
     }
@@ -140,23 +84,6 @@ function TemplateEditorContent() {
     setTimeout(() => {
       router.push('/workouts/templates');
     }, 600);
-  };
-
-  // Previsualización de la plantilla
-  const previewWorkSec = (watchedValues.workMinutes || 0) * 60 + (watchedValues.workSeconds || 0);
-  const previewRestRepsSec = (watchedValues.restBetweenRepsMinutes || 0) * 60 + (watchedValues.restBetweenRepsSeconds || 0);
-  const previewRestSetsSec = (watchedValues.restBetweenSetsMinutes || 0) * 60 + (watchedValues.restBetweenSetsSeconds || 0);
-
-  const previewBlock: WorkoutBlock = {
-    id: 'preview',
-    position: 0,
-    title: watchedValues.title || 'Nombre de la plantilla',
-    type: executionMode === 'time' ? 'intervals' : 'reps',
-    sets: 4,
-    repetitions: executionMode === 'reps' ? watchedValues.defaultReps : (previewRestRepsSec > 0 ? 6 : undefined),
-    workDurationSeconds: executionMode === 'time' ? previewWorkSec : undefined,
-    restBetweenRepsSeconds: previewRestRepsSec > 0 ? previewRestRepsSec : undefined,
-    restDurationSeconds: previewRestSetsSec,
   };
 
   return (
@@ -178,7 +105,7 @@ function TemplateEditorContent() {
           {editingTemplate ? 'Editar Plantilla' : 'Nueva Plantilla'}
         </h1>
         <p className="text-xs text-graphite-500 mt-0.5">
-          Define el ejercicio (nombre, descansos y tiempo de trabajo o repeticiones)
+          Define qué es el ejercicio. Las series, el descanso y la carga se deciden al añadirlo a una sesión.
         </p>
       </div>
 
@@ -194,129 +121,63 @@ function TemplateEditorContent() {
         onSubmit={handleSubmit(onSubmit)}
         className="bg-white dark:bg-graphite-900 p-5 sm:p-6 rounded-3xl border border-chalk-300 dark:border-graphite-800 shadow-sm space-y-5"
       >
-        {/* 1. Nombre de la Plantilla */}
+        {/* 1. Nombre del Ejercicio */}
         <Input
-          label="Nombre de la Plantilla"
-          placeholder="Ej: Suspensiones 7/3, Bloques de 4 movimientos, Dominadas con lastre, Continuidad ARC..."
+          label="Nombre del Ejercicio"
+          placeholder="Ej: Suspensiones 20mm, Bloques de 4 movimientos, Dominadas con lastre, Continuidad ARC..."
           {...register('title')}
           error={errors.title?.message}
           className="text-base font-bold"
         />
 
-        {/* 2. Modalidad: Tiempo de trabajo vs Repeticiones */}
+        {/* 2. Tipo de Ejecución */}
         <div className="p-4 bg-chalk-50 dark:bg-graphite-850 rounded-2xl border border-chalk-200 dark:border-graphite-750 space-y-3">
           <label className="block text-xs font-bold uppercase tracking-wider text-graphite-700 dark:text-graphite-300">
-            ¿Cómo se ejecuta el ejercicio?
+            ¿Qué tipo de ejercicio es?
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setValue('executionMode', 'time')}
-              className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
-                executionMode === 'time'
-                  ? 'border-terracotta bg-terracotta-50/70 dark:bg-terracotta-950/40 text-terracotta ring-1 ring-terracotta font-bold'
-                  : 'border-chalk-300 dark:border-graphite-700 bg-white dark:bg-graphite-900 text-graphite-700 dark:text-graphite-300'
-              }`}
-            >
-              <Timer className="w-5 h-5 text-terracotta" />
-              <div>
-                <div className="text-xs font-bold">Por Tiempo de Trabajo</div>
-                <div className="text-[10px] text-graphite-500">Ej: 10s, 3:00 min, 15 min...</div>
-              </div>
-            </button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {BLOCK_TYPES.map((type) => {
+              const config = BLOCK_TYPE_CONFIG[type];
+              const IconComponent = config.icon;
+              const isSelected = selectedType === type;
 
-            <button
-              type="button"
-              onClick={() => setValue('executionMode', 'reps')}
-              className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
-                executionMode === 'reps'
-                  ? 'border-terracotta bg-terracotta-50/70 dark:bg-terracotta-950/40 text-terracotta ring-1 ring-terracotta font-bold'
-                  : 'border-chalk-300 dark:border-graphite-700 bg-white dark:bg-graphite-900 text-graphite-700 dark:text-graphite-300'
-              }`}
-            >
-              <Repeat className="w-5 h-5 text-amber-500" />
-              <div>
-                <div className="text-xs font-bold">Por Repeticiones / Movs</div>
-                <div className="text-[10px] text-graphite-500">Ej: 5 reps, 4 bloques/movs...</div>
-              </div>
-            </button>
-          </div>
-
-          {/* Campo condicional según modalidad */}
-          {executionMode === 'time' ? (
-            <div className="pt-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-graphite-700 dark:text-graphite-300 mb-1.5">
-                Tiempo de Trabajo
-              </label>
-              <div className="flex items-center gap-2 max-w-xs">
-                <Input type="number" min={0} placeholder="Min" {...register('workMinutes')} />
-                <span className="text-sm font-bold text-graphite-400">:</span>
-                <Input type="number" min={0} max={59} placeholder="Seg" {...register('workSeconds')} />
-              </div>
-              <p className="text-[10px] text-graphite-500 mt-1">Tiempo de esfuerzo activo por serie o repetición</p>
-            </div>
-          ) : (
-            <div className="pt-2 max-w-xs">
-              <Input
-                type="number"
-                label="Repeticiones / Movimientos base"
-                min={1}
-                placeholder="Ej: 5"
-                {...register('defaultReps')}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* 3. Descansos (Entre repeticiones y Entre series) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 p-4 bg-chalk-50 dark:bg-graphite-850 rounded-2xl border border-chalk-200 dark:border-graphite-750">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-graphite-700 dark:text-graphite-300 mb-1.5 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-moss" />
-              Descanso entre Repeticiones
-            </label>
-            <div className="flex items-center gap-2">
-              <Input type="number" min={0} placeholder="Min" {...register('restBetweenRepsMinutes')} />
-              <span className="text-sm font-bold text-graphite-400">:</span>
-              <Input type="number" min={0} max={59} placeholder="Seg" {...register('restBetweenRepsSeconds')} />
-            </div>
-            <p className="text-[10px] text-graphite-500 mt-1">Pausa breve entre repeticiones (ej. 3s en suspensiones 7/3, o 0s si no aplica)</p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-graphite-700 dark:text-graphite-300 mb-1.5 flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-terracotta" />
-              Descanso entre Series
-            </label>
-            <div className="flex items-center gap-2">
-              <Input type="number" min={0} placeholder="Min" {...register('restBetweenSetsMinutes')} />
-              <span className="text-sm font-bold text-graphite-400">:</span>
-              <Input type="number" min={0} max={59} placeholder="Seg" {...register('restBetweenSetsSeconds')} />
-            </div>
-            <p className="text-[10px] text-graphite-500 mt-1">Pausa completa entre series (ej. 2:00 o 3:00)</p>
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setValue('type', type)}
+                  className={`p-3 rounded-2xl border text-left flex items-center gap-2.5 transition-all ${
+                    isSelected
+                      ? 'border-terracotta bg-terracotta-50/70 dark:bg-terracotta-950/40 text-terracotta ring-1 ring-terracotta font-bold'
+                      : 'border-chalk-300 dark:border-graphite-700 bg-white dark:bg-graphite-900 text-graphite-700 dark:text-graphite-300'
+                  }`}
+                >
+                  <IconComponent className="w-5 h-5 shrink-0" />
+                  <div>
+                    <div className="text-xs font-bold">{config.label}</div>
+                    <div className="text-[10px] text-graphite-500">{config.description}</div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* 4. Descripción opcional */}
-        <Input
-          label="Descripción o Enfoque (Opcional)"
-          placeholder="Ej: Semiarqueo en regleta 20mm, hombros activos y recorrido completo..."
-          {...register('description')}
-        />
-
-        {/* 5. Vista Previa */}
-        <div className="p-3.5 bg-chalk-100 dark:bg-graphite-800 rounded-2xl border border-chalk-200 dark:border-graphite-750 flex items-center gap-3">
-          <Sparkles className="w-5 h-5 text-terracotta shrink-0" />
-          <div className="text-xs">
-            <span className="font-semibold text-graphite-500">Resumen de Plantilla: </span>
-            <span className="font-bold text-graphite-900 dark:text-graphite-100">
-              {formatBlockSummary(previewBlock)}
-            </span>
-          </div>
+        {/* 3. Descripción / Indicaciones técnicas */}
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-graphite-600 dark:text-graphite-400 mb-1.5">
+            Indicaciones Técnicas (Opcional)
+          </label>
+          <textarea
+            rows={3}
+            placeholder="Ej: Semiarqueo en regleta 20mm, hombros activos y recorrido completo..."
+            {...register('description')}
+            className="w-full px-3.5 py-2.5 rounded-xl text-sm bg-chalk-100 dark:bg-graphite-800 text-graphite-900 dark:text-graphite-100 border border-chalk-300 dark:border-graphite-700 focus:outline-none focus:ring-2 focus:ring-terracotta/40 focus:border-terracotta"
+          />
         </div>
 
-        {/* 6. Botones de Acción */}
+        {/* 4. Botones de Acción */}
         <div className="flex items-center justify-end gap-2.5 pt-2">
           <Button type="button" variant="outline" size="md" onClick={() => router.push('/workouts/templates')}>
             <X className="w-4 h-4 mr-1" />

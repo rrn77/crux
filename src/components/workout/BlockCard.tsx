@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { GripVertical, Edit2, Trash2, ArrowUp, ArrowDown, Timer, Layers, Repeat, Target, FileText } from 'lucide-react';
+import { GripVertical, Edit2, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { WorkoutBlock } from '@/lib/types';
-import { formatBlockSummary, calculateBlockEstimatedDuration, formatDurationHuman } from '@/lib/timer/durationHelper';
+import { formatBlockSummary, calculateBlockEstimatedDuration, formatDurationHuman, BLOCK_TYPE_CONFIG } from '@/lib/timer/durationHelper';
 import { Badge } from '@/components/ui/Badge';
 
 interface BlockCardProps {
@@ -29,15 +29,7 @@ export function BlockCard({
 }: BlockCardProps) {
   const estimatedSec = calculateBlockEstimatedDuration(block);
 
-  const typeConfig = {
-    intervals: { label: 'Intervalos', icon: Timer, variant: 'terracotta' as const },
-    problems: { label: 'Bloques', icon: Layers, variant: 'moss' as const },
-    reps: { label: 'Reps', icon: Repeat, variant: 'warning' as const },
-    attempts: { label: 'Intentos', icon: Target, variant: 'neutral' as const },
-    free: { label: 'Libre', icon: FileText, variant: 'outline' as const },
-  };
-
-  const currentType = typeConfig[block.type] || typeConfig.free;
+  const currentType = BLOCK_TYPE_CONFIG[block.type] || BLOCK_TYPE_CONFIG.free;
   const IconComponent = currentType.icon;
 
   return (

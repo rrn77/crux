@@ -289,8 +289,7 @@ async function main() {
 
     const tpl = await useWorkoutStore.getState().addTemplate({
       title: 'Suspensiones 7/3 Intermitentes',
-      estimatedDurationSeconds: 600,
-      blocks: [],
+      type: 'intervals',
     });
 
     assert.strictEqual(useWorkoutStore.getState().templates.length, 1);

@@ -86,50 +86,15 @@ function deserializeSessionNotes(rawNotes?: string): {
   return { notes: rawNotes };
 }
 
-function blockToRow(templateId: string, position: number, b: WorkoutBlock) {
-  return {
-    template_id: templateId,
-    position,
-    title: b.title,
-    type: b.type,
-    sets: b.sets,
-    work_duration_seconds: b.workDurationSeconds,
-    rest_duration_seconds: b.restDurationSeconds,
-    repetitions: b.repetitions,
-    attempts: b.attempts,
-    problems: b.problems,
-    movements: b.movements,
-    target: b.target,
-    notes: b.notes,
-  };
-}
-
 function mapRemoteTemplate(tpl: Record<string, unknown>): WorkoutTemplate {
   return {
     id: tpl.id as string,
     userId: tpl.user_id as string | undefined,
     title: tpl.title as string,
+    type: tpl.type as WorkoutTemplate['type'],
     description: tpl.description as string | undefined,
-    estimatedDurationSeconds: Number(tpl.estimated_duration_seconds) || 0,
-    isDefault: Boolean(tpl.is_default),
     createdAt: tpl.created_at as string,
     updatedAt: tpl.updated_at as string,
-    blocks: ((tpl.workout_blocks as Array<Record<string, unknown>>) || []).map((b) => ({
-      id: b.id as string,
-      templateId: b.template_id as string,
-      position: Number(b.position) || 0,
-      title: b.title as string,
-      type: b.type as WorkoutBlock['type'],
-      sets: b.sets ? Number(b.sets) : undefined,
-      workDurationSeconds: b.work_duration_seconds ? Number(b.work_duration_seconds) : undefined,
-      restDurationSeconds: b.rest_duration_seconds ? Number(b.rest_duration_seconds) : undefined,
-      repetitions: b.repetitions ? Number(b.repetitions) : undefined,
-      attempts: b.attempts ? Number(b.attempts) : undefined,
-      problems: b.problems ? Number(b.problems) : undefined,
-      movements: b.movements ? Number(b.movements) : undefined,
-      target: b.target as string | undefined,
-      notes: b.notes as string | undefined,
-    })),
   };
 }
 
@@ -227,7 +192,7 @@ export const useWorkoutStore = create<WorkoutStore>()((set, get) => ({
     set({ isLoading: true });
     try {
       const [{ data: remoteTemplates, error: tplErr }, { data: remoteSessions, error: sessErr }] = await Promise.all([
-        supabase.from('workout_templates').select('*, workout_blocks(*)').eq('user_id', userId),
+        supabase.from('workout_templates').select('*').eq('user_id', userId),
         supabase
           .from('workout_sessions')
           .select('*, block_logs(*)')
@@ -268,17 +233,10 @@ export const useWorkoutStore = create<WorkoutStore>()((set, get) => ({
           id,
           user_id: userId,
           title: newTemplate.title,
+          type: newTemplate.type,
           description: newTemplate.description,
-          estimated_duration_seconds: newTemplate.estimatedDurationSeconds,
-          is_default: false,
         });
         if (error) throw error;
-
-        if (newTemplate.blocks && newTemplate.blocks.length > 0) {
-          const blocksToInsert = newTemplate.blocks.map((b, idx) => blockToRow(id, idx, b));
-          const { error: blocksErr } = await supabase.from('workout_blocks').insert(blocksToInsert);
-          if (blocksErr) throw blocksErr;
-        }
       } catch (err) {
         console.warn('Error al guardar plantilla en Supabase:', err);
       }
@@ -302,20 +260,11 @@ export const useWorkoutStore = create<WorkoutStore>()((set, get) => ({
         .from('workout_templates')
         .update({
           title: updated.title,
+          type: updated.type,
           description: updated.description,
-          estimated_duration_seconds: updated.estimatedDurationSeconds,
         })
         .eq('id', id);
       if (error) throw error;
-
-      if (data.blocks) {
-        await supabase.from('workout_blocks').delete().eq('template_id', id);
-        if (updated.blocks.length > 0) {
-          const blocksToInsert = updated.blocks.map((b, idx) => blockToRow(id, idx, b));
-          const { error: blocksErr } = await supabase.from('workout_blocks').insert(blocksToInsert);
-          if (blocksErr) throw blocksErr;
-        }
-      }
     } catch (err) {
       console.warn('Error al actualizar plantilla en Supabase:', err);
     }
@@ -326,7 +275,6 @@ export const useWorkoutStore = create<WorkoutStore>()((set, get) => ({
 
     if (!supabase) return;
     try {
-      await supabase.from('workout_blocks').delete().eq('template_id', id);
       const { error } = await supabase.from('workout_templates').delete().eq('id', id);
       if (error) throw error;
     } catch (err) {
