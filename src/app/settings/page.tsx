@@ -19,7 +19,6 @@ import { useSettingsStore } from '@/lib/store/settingsStore';
 import { useWorkoutStore } from '@/lib/store/workoutStore';
 import { useTestStore } from '@/lib/store/testStore';
 import { useAuthStore } from '@/lib/supabase/authStore';
-import { syncService } from '@/lib/supabase/syncService';
 import { isSupabaseConfigured } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 
@@ -212,14 +211,14 @@ export default function SettingsPage() {
       {/* 3. Base de Datos y Supabase */}
       <div className="bg-white dark:bg-graphite-900 p-5 rounded-3xl border border-chalk-300 dark:border-graphite-800 shadow-sm space-y-4">
         <h2 className="font-bold text-sm text-graphite-900 dark:text-graphite-100 uppercase tracking-wider">
-          Persistencia y Sincronización en la Nube
+          Base de Datos en la Nube
         </h2>
 
         <div className="p-4 rounded-2xl bg-chalk-100 dark:bg-graphite-850 flex items-start gap-3 border border-chalk-200 dark:border-graphite-800">
           <Database className="w-5 h-5 text-terracotta shrink-0 mt-0.5" />
           <div className="text-xs space-y-1.5 flex-1">
             <div className="font-bold text-graphite-900 dark:text-graphite-100 flex items-center justify-between">
-              <span>Estado: {isSupabaseConfigured ? 'Supabase Conectado' : 'Modo Local / Offline'}</span>
+              <span>Estado: {isSupabaseConfigured ? 'Supabase Conectado' : 'Supabase No Configurado'}</span>
               {isSupabaseConfigured && (
                 <span className="inline-flex items-center gap-1 text-moss font-bold">
                   <CheckCircle className="w-3.5 h-3.5" /> Activo
@@ -229,13 +228,13 @@ export default function SettingsPage() {
 
             {user ? (
               <p className="text-graphite-600 dark:text-graphite-300">
-                Sesión iniciada como <strong className="text-graphite-900 dark:text-white font-mono">{user.email}</strong>. Tus entrenamientos se sincronizan automáticamente con tu base de datos.
+                Sesión iniciada como <strong className="text-graphite-900 dark:text-white font-mono">{user.email}</strong>. Todos tus entrenamientos, plantillas y tests se leen y guardan directamente en tu base de datos de Supabase.
               </p>
             ) : (
               <p className="text-graphite-500">
                 {isSupabaseConfigured
-                  ? 'Inicia sesión para sincronizar tus plantillas, historial y tests en la nube de Supabase.'
-                  : 'La aplicación almacena tus datos de forma segura en tu navegador. Puedes añadir tus credenciales en `.env.local` para activar Supabase.'}
+                  ? 'Inicia sesión para acceder a tus plantillas, historial y tests almacenados en Supabase.'
+                  : 'CRUX necesita Supabase para funcionar. Configura `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` en `.env.local`.'}
               </p>
             )}
           </div>
@@ -252,13 +251,16 @@ export default function SettingsPage() {
               variant="primary"
               size="sm"
               onClick={async () => {
-                const ok = await syncService.syncAll(user.id);
-                alert(ok ? '¡Datos sincronizados con éxito con Supabase!' : 'Error al sincronizar datos.');
+                await Promise.all([
+                  useWorkoutStore.getState().fetchAll(user.id),
+                  useTestStore.getState().fetchAll(user.id),
+                ]);
+                alert('¡Datos recargados desde Supabase!');
               }}
               className="w-full sm:w-auto"
             >
               <Database className="w-4 h-4 mr-1.5" />
-              Sincronizar Ahora
+              Recargar Datos
             </Button>
           )}
         </div>

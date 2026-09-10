@@ -30,11 +30,11 @@ CRUX **no impone un catálogo cerrado de ejercicios**. Puedes crear cualquier bl
 - **Estilos:** Tailwind CSS con paleta deportiva de alto contraste (Terracota, Verde Musgo, Crema/Piedra, Grafito).
 - **Temporizador Inteligente:** Basado en timestamps (`Date.now()`) con máquina de estados (`idle` → `work` → `rest` → `blockCompleted` → `sessionCompleted`) resistente al bloqueo de pantalla y segundo plano.
 - **Audio y Háptica:** Síntesis Web Audio API (beeps 3-2-1 y acordes polifónicos) + API de vibración.
-- **Estado y Persistencia:** Zustand con almacenamiento persistente local para funcionamiento offline continuo.
-- **Base de Datos & Auth:** Supabase con esquema SQL completo y Row Level Security (RLS).
+- **Estado:** Zustand como caché en memoria del cliente; toda lectura y escritura de plantillas, sesiones y tests se hace directamente contra Supabase (sin persistencia local de datos). El temporizador de la sesión activa sigue corriendo en el dispositivo para resistir bloqueos de pantalla, y sincroniza cada bloque completado con Supabase.
+- **Base de Datos & Auth:** Supabase (obligatorio) con esquema SQL completo, Row Level Security (RLS) y autenticación por email/contraseña.
 - **Visualización de Datos:** Recharts para curvas de evolución de tests y volumen semanal.
 - **Iconografía:** Lucide React.
-- **PWA:** Manifiesto Web e instalación nativa como aplicación móvil offline.
+- **PWA:** Manifiesto Web e instalación nativa como aplicación móvil (requiere conexión para leer y guardar datos).
 
 ---
 
@@ -44,7 +44,7 @@ CRUX **no impone un catálogo cerrado de ejercicios**. Puedes crear cualquier bl
 crux/
 ├── public/
 │   ├── manifest.json              # Manifiesto PWA instalable
-│   ├── sw.js                      # Service Worker para soporte offline
+│   ├── sw.js                      # Service Worker mínimo (solo instalabilidad PWA)
 │   └── icons/                     # Iconos SVG de alta resolución
 ├── src/
 │   ├── app/
@@ -83,7 +83,7 @@ crux/
 │   │   │   ├── testStore.ts          # Benchmarks y deltas
 │   │   │   └── settingsStore.ts      # Preferencias de usuario
 │   │   ├── supabase/
-│   │   │   └── client.ts          # Cliente Supabase tipado con fallback offline
+│   │   │   └── client.ts          # Cliente Supabase tipado
 │   │   └── types/
 │   │       └── index.ts           # Modelos de datos TypeScript
 │   ├── data/
@@ -115,12 +115,12 @@ cd crux
 npm install
 ```
 
-### 4. Configurar variables de entorno (Opcional)
-Copia `.env.example` a `.env.local`:
+### 4. Configurar variables de entorno (Obligatorio)
+Copia `.env.example` a `.env.local` y añade tus credenciales de Supabase:
 ```bash
 cp .env.example .env.local
 ```
-*(Nota: Si no configuras Supabase, CRUX funciona de manera 100% funcional y persistente en modo local offline).*
+*(Nota: CRUX necesita Supabase para funcionar. Sin `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` configurados no será posible iniciar sesión ni guardar datos).*
 
 ### 5. Iniciar servidor de desarrollo
 ```bash
@@ -159,5 +159,5 @@ Si deseas conectar Supabase, ejecuta el contenido de `supabase/schema.sql` en el
 ## 📱 Funcionalidades PWA
 
 - **Instalable en móvil y escritorio:** Añade CRUX a tu pantalla de inicio desde Chrome, Safari iOS o Edge.
-- **Offline-ready:** Funciona sin conexión a internet en el rocódromo o en la pared.
-- **Protección de sesión activa:** Si la aplicación se cierra accidentalmente o el teléfono se apaga, al volver a abrir CRUX recuperas tu sesión activa exactamente en el segundo correspondiente.
+- **Requiere conexión a internet:** CRUX lee y guarda todos tus datos directamente en Supabase, por lo que necesitas conexión para planificar, entrenar y consultar tu historial.
+- **Protección de sesión activa:** El temporizador de la sesión en curso corre en el dispositivo, así que si la aplicación se cierra accidentalmente o el teléfono se apaga, al volver a abrir CRUX recuperas tu sesión activa exactamente en el segundo correspondiente.

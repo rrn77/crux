@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import { useWorkoutStore } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
-import { syncService } from '@/lib/supabase/syncService';
 import { formatDurationHuman, formatSecondsToTime, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -62,8 +61,7 @@ export default function HistoryDetailPage() {
   const handleConfirmDelete = async () => {
     setIsDeleting(true);
     try {
-      deleteSession(sessionId);
-      await syncService.deleteSession(sessionId, session?.title);
+      await deleteSession(sessionId);
       router.push('/history');
     } catch (err) {
       console.warn('Error al eliminar sesión:', err);

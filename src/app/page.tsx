@@ -28,7 +28,6 @@ import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHel
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { syncService } from '@/lib/supabase/syncService';
 import { WorkoutTemplate, WorkoutSession } from '@/lib/types';
 
 export default function HomePage() {
@@ -47,11 +46,10 @@ export default function HomePage() {
 
   const handleConfirmDeleteSession = async () => {
     if (!deletingSession) return;
-    const { id, title } = deletingSession;
+    const { id } = deletingSession;
     setIsDeletingSession(true);
     try {
-      deleteSession(id);
-      await syncService.deleteSession(id, title);
+      await deleteSession(id);
     } catch (err) {
       console.warn('Error al eliminar sesión:', err);
     } finally {

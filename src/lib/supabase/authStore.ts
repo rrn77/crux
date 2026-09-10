@@ -1,9 +1,15 @@
 import { create } from 'zustand';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './client';
-import { syncService } from './syncService';
 import { useWorkoutStore } from '../store/workoutStore';
 import { useTestStore } from '../store/testStore';
+
+function loadUserData(userId: string) {
+  useWorkoutStore.getState().setUserId(userId);
+  useTestStore.getState().setUserId(userId);
+  useWorkoutStore.getState().fetchAll(userId).catch(() => {});
+  useTestStore.getState().fetchAll(userId).catch(() => {});
+}
 
 interface AuthState {
   user: User | null;
@@ -42,7 +48,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (session?.user) {
-        syncService.syncAll(session.user.id).catch(() => {});
+        loadUserData(session.user.id);
       }
 
       // Escuchar cambios de autenticación
@@ -54,7 +60,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
 
         if (newSession?.user) {
-          syncService.syncAll(newSession.user.id).catch(() => {});
+          loadUserData(newSession.user.id);
         }
       });
     } catch {
@@ -87,7 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (data.user) {
-        syncService.syncAll(data.user.id).catch(() => {});
+        loadUserData(data.user.id);
       }
 
       return { success: true };

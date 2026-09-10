@@ -15,7 +15,6 @@ import {
 } from 'lucide-react';
 import { useWorkoutStore } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
-import { syncService } from '@/lib/supabase/syncService';
 import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { WorkoutTemplate } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
@@ -36,11 +35,10 @@ export default function TemplatesPage() {
 
   const handleConfirmDelete = async () => {
     if (!deletingTemplate) return;
-    const { id, title } = deletingTemplate;
+    const { id } = deletingTemplate;
     setIsDeleting(true);
     try {
-      deleteTemplate(id);
-      await syncService.deleteTemplate(id, title);
+      await deleteTemplate(id);
     } catch (err) {
       console.warn('Error al eliminar plantilla:', err);
     } finally {

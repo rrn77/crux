@@ -21,8 +21,6 @@ import {
 import { WorkoutBlock, WorkoutTemplate } from '@/lib/types';
 import { useWorkoutStore, getLocalDateIsoString, generateUUID } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
-import { syncService } from '@/lib/supabase/syncService';
-import { useAuthStore } from '@/lib/supabase/authStore';
 import { calculateTotalEstimatedDuration, formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -204,7 +202,7 @@ function WorkoutBuilderContent() {
     if (!sessionTitle.trim()) return;
     if (blocks.length === 0) return;
 
-    const session = scheduleSession({
+    const session = await scheduleSession({
       id: sessionIdParam || undefined,
       title: sessionTitle.trim(),
       notes: sessionDescription.trim() || undefined,
@@ -216,22 +214,17 @@ function WorkoutBuilderContent() {
       logs: [],
     });
 
-    const user = useAuthStore.getState().user;
-    if (user) {
-      await syncService.pushSession(session, user.id);
-    }
-
     setSaveSuccessMessage(`¡Sesión planificada para el ${scheduledDate}!`);
     setTimeout(() => {
       router.push('/history');
     }, 800);
   };
 
-  const handleStartWorkoutNow = () => {
+  const handleStartWorkoutNow = async () => {
     if (blocks.length === 0) return;
     const title = sessionTitle.trim() || 'Sesión de Entrenamiento';
 
-    const session = scheduleSession({
+    const session = await scheduleSession({
       id: sessionIdParam || undefined,
       title,
       notes: sessionDescription.trim() || undefined,

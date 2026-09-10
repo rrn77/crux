@@ -7,7 +7,6 @@ import * as z from 'zod';
 import { Save, X, Edit3, Plus, Trash2, Layers, Zap } from 'lucide-react';
 import { TestRecord, TestSet } from '@/lib/types';
 import { useTestStore, calculateTestFatigue } from '@/lib/store/testStore';
-import { syncService } from '@/lib/supabase/syncService';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -143,7 +142,7 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
 
   if (!test) return null;
 
-  const onSubmit = (data: EditTestFormData) => {
+  const onSubmit = async (data: EditTestFormData) => {
     if (validTestSets.length === 0) {
       setSetsError('Debes ingresar al menos el valor de una serie');
       return;
@@ -175,8 +174,7 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
       targetMetric,
     };
 
-    updateTest(test.id, updated);
-    syncService.updateRemoteTest(test.id, updated);
+    await updateTest(test.id, updated);
     onClose();
   };
 

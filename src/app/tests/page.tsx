@@ -20,7 +20,6 @@ import {
   Layers,
 } from 'lucide-react';
 import { useTestStore, calculateTestDelta, calculateTestFatigue } from '@/lib/store/testStore';
-import { syncService } from '@/lib/supabase/syncService';
 import { TestRecord } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -38,9 +37,7 @@ export default function TestsPage() {
     if (!deletingTest) return;
     setIsDeleting(true);
     try {
-      const id = deletingTest.id;
-      deleteTest(id);
-      await syncService.deleteTest(id);
+      await deleteTest(deletingTest.id);
     } catch (err) {
       console.warn('Error al eliminar test:', err);
     } finally {
@@ -49,7 +46,7 @@ export default function TestsPage() {
     }
   };
 
-  const handleMoveTest = (items: TestRecord[], currentIndex: number, direction: 'up' | 'down') => {
+  const handleMoveTest = async (items: TestRecord[], currentIndex: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
     if (targetIndex < 0 || targetIndex >= items.length) return;
 
@@ -62,13 +59,13 @@ export default function TestsPage() {
     const month = firstDate.getMonth();
     const day = firstDate.getDate();
 
-    newItems.forEach((item, idx) => {
+    for (let idx = 0; idx < newItems.length; idx++) {
+      const item = newItems[idx];
       const newTestedAt = new Date(year, month, day, 10, idx, 0, 0).toISOString();
       if (item.testedAt !== newTestedAt) {
-        updateTest(item.id, { testedAt: newTestedAt });
-        syncService.updateRemoteTest(item.id, { testedAt: newTestedAt });
+        await updateTest(item.id, { testedAt: newTestedAt });
       }
-    });
+    }
   };
 
   const uniqueTitles = getUniqueTitles();

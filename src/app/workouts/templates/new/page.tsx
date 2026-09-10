@@ -17,8 +17,6 @@ import {
   X,
 } from 'lucide-react';
 import { useWorkoutStore, generateUUID } from '@/lib/store/workoutStore';
-import { useAuthStore } from '@/lib/supabase/authStore';
-import { syncService } from '@/lib/supabase/syncService';
 import { WorkoutBlock, WorkoutTemplate } from '@/lib/types';
 import { calculateTotalEstimatedDuration, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
@@ -98,7 +96,7 @@ function TemplateEditorContent() {
     }
   }, [templateIdParam, getTemplateById, reset]);
 
-  const onSubmit = (data: TemplateFormData) => {
+  const onSubmit = async (data: TemplateFormData) => {
     const totalWorkSec = data.executionMode === 'time'
       ? (data.workMinutes || 0) * 60 + (data.workSeconds || 0)
       : undefined;
@@ -120,33 +118,22 @@ function TemplateEditorContent() {
     };
 
     const estimatedSec = calculateTotalEstimatedDuration([block]);
-    const user = useAuthStore.getState().user;
-    const userId = user?.id || 'local';
 
     if (editingTemplate) {
-      const updated: WorkoutTemplate = {
-        ...editingTemplate,
+      await updateTemplate(editingTemplate.id, {
         title: data.title.trim(),
         description: data.description?.trim() || undefined,
         estimatedDurationSeconds: estimatedSec,
         blocks: [block],
-      };
-      updateTemplate(editingTemplate.id, {
-        title: updated.title,
-        description: updated.description,
-        estimatedDurationSeconds: estimatedSec,
-        blocks: updated.blocks,
       });
-      syncService.pushTemplate(updated, userId);
       setSuccessMessage('¡Plantilla actualizada!');
     } else {
-      const newTpl = addTemplate({
+      await addTemplate({
         title: data.title.trim(),
         description: data.description?.trim() || undefined,
         estimatedDurationSeconds: estimatedSec,
         blocks: [block],
       });
-      syncService.pushTemplate(newTpl, userId);
       setSuccessMessage('¡Plantilla creada!');
     }
 

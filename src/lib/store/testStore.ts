@@ -1,13 +1,18 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { TestRecord } from '../types';
+import { TestRecord, TestSet } from '../types';
+import { supabase } from '../supabase/client';
 
 interface TestStore {
   tests: TestRecord[];
-  deletedTestIds: string[];
-  addTest: (test: Omit<TestRecord, 'id' | 'createdAt'>) => TestRecord;
-  updateTest: (id: string, test: Partial<TestRecord>) => void;
-  deleteTest: (id: string) => void;
+  userId: string | null;
+  isLoading: boolean;
+
+  setUserId: (userId: string | null) => void;
+  fetchAll: (userId: string) => Promise<void>;
+
+  addTest: (test: Omit<TestRecord, 'id' | 'createdAt'>) => Promise<TestRecord>;
+  updateTest: (id: string, test: Partial<TestRecord>) => Promise<void>;
+  deleteTest: (id: string) => Promise<void>;
   getTestsByTitle: (title: string) => TestRecord[];
   getPreviousTest: (title: string, currentTestDate: string) => TestRecord | undefined;
   getUniqueTitles: () => string[];
@@ -25,74 +30,181 @@ function generateUUID(): string {
   });
 }
 
-export const useTestStore = create<TestStore>()(
-  persist(
-    (set, get) => ({
-      tests: [],
-      deletedTestIds: [],
+// El esquema de Supabase no tiene columnas propias para las series individuales ni el
+// criterio de mejora, así que viajan serializados dentro de `notes`.
+function serializeNotesAndSets(
+  notes?: string,
+  sets?: TestSet[],
+  targetMetric?: 'higher_is_better' | 'lower_is_better'
+): string | undefined {
+  if ((!sets || sets.length === 0) && (!targetMetric || targetMetric === 'higher_is_better')) {
+    return notes;
+  }
+  return `[SETS]:${JSON.stringify({ notes: notes || '', sets, targetMetric })}`;
+}
 
-      addTest: (testData) => {
-        const id = generateUUID();
-        const newTest: TestRecord = {
-          ...testData,
-          id,
-          createdAt: new Date().toISOString(),
-        };
-
-        set((state) => ({
-          tests: [newTest, ...state.tests],
-          deletedTestIds: (state.deletedTestIds || []).filter((delId) => delId !== id),
-        }));
-
-        return newTest;
-      },
-
-      updateTest: (id, data) => {
-        set((state) => ({
-          tests: state.tests.map((t) => (t.id === id ? { ...t, ...data } : t)),
-        }));
-      },
-
-      deleteTest: (id) => {
-        set((state) => ({
-          tests: state.tests.filter((t) => t.id !== id),
-          deletedTestIds: Array.from(new Set([...(state.deletedTestIds || []), id])),
-        }));
-      },
-
-      getTestsByTitle: (title) => {
-        return get()
-          .tests.filter((t) => t.title.toLowerCase() === title.toLowerCase())
-          .sort((a, b) => new Date(b.testedAt).getTime() - new Date(a.testedAt).getTime());
-      },
-
-      getPreviousTest: (title, currentTestDate) => {
-        const currentTimestamp = new Date(currentTestDate).getTime();
-        const sameTypeTests = get()
-          .tests.filter(
-            (t) =>
-              t.title.toLowerCase() === title.toLowerCase() &&
-              new Date(t.testedAt).getTime() < currentTimestamp
-          )
-          .sort((a, b) => new Date(b.testedAt).getTime() - new Date(a.testedAt).getTime());
-
-        return sameTypeTests[0];
-      },
-
-      getUniqueTitles: () => {
-        const titles = get().tests.map((t) => t.title);
-        return Array.from(new Set(titles));
-      },
-
-      clearTestStore: () => {
-        set({ tests: [], deletedTestIds: [] });
-      },
-    }),
-    {
-      name: 'crux-tests-store',
+function deserializeNotesAndSets(rawNotes?: string): {
+  notes?: string;
+  sets?: TestSet[];
+  targetMetric?: 'higher_is_better' | 'lower_is_better';
+} {
+  if (!rawNotes) return { notes: undefined, sets: undefined, targetMetric: undefined };
+  if (rawNotes.startsWith('[SETS]:')) {
+    try {
+      const parsed = JSON.parse(rawNotes.slice(7));
+      return {
+        notes: parsed.notes || undefined,
+        sets: parsed.sets && parsed.sets.length > 0 ? parsed.sets : undefined,
+        targetMetric: parsed.targetMetric || undefined,
+      };
+    } catch {
+      return { notes: rawNotes, sets: undefined, targetMetric: undefined };
     }
-  )
-);
+  }
+  return { notes: rawNotes, sets: undefined, targetMetric: undefined };
+}
+
+function mapRemoteTest(t: Record<string, unknown>): TestRecord {
+  const { notes, sets, targetMetric } = deserializeNotesAndSets(t.notes as string | undefined);
+  return {
+    id: t.id as string,
+    userId: t.user_id as string,
+    title: t.title as string,
+    protocol: t.protocol as string | undefined,
+    value: Number(t.value),
+    unit: t.unit as string,
+    testedAt: t.tested_at as string,
+    notes,
+    sets,
+    targetMetric,
+    createdAt: t.created_at as string,
+  };
+}
+
+export const useTestStore = create<TestStore>()((set, get) => ({
+  tests: [],
+  userId: null,
+  isLoading: false,
+
+  setUserId: (userId) => set({ userId }),
+
+  fetchAll: async (userId) => {
+    if (!supabase) return;
+    set({ isLoading: true });
+    try {
+      const { data, error } = await supabase
+        .from('tests')
+        .select('*')
+        .eq('user_id', userId)
+        .order('tested_at', { ascending: false });
+      if (error) throw error;
+      set({ tests: (data || []).map(mapRemoteTest) });
+    } catch (err) {
+      console.warn('Error al cargar tests desde Supabase:', err);
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  addTest: async (testData) => {
+    const userId = get().userId;
+    const id = generateUUID();
+    const newTest: TestRecord = {
+      ...testData,
+      id,
+      createdAt: new Date().toISOString(),
+    };
+
+    set((state) => ({ tests: [newTest, ...state.tests] }));
+
+    if (supabase && userId) {
+      try {
+        const { error } = await supabase.from('tests').insert({
+          id,
+          user_id: userId,
+          title: newTest.title,
+          protocol: newTest.protocol,
+          value: newTest.value,
+          unit: newTest.unit,
+          tested_at: newTest.testedAt,
+          notes: serializeNotesAndSets(newTest.notes, newTest.sets, newTest.targetMetric),
+        });
+        if (error) throw error;
+      } catch (err) {
+        console.warn('Error al guardar test en Supabase:', err);
+      }
+    }
+
+    return newTest;
+  },
+
+  updateTest: async (id, data) => {
+    set((state) => ({
+      tests: state.tests.map((t) => (t.id === id ? { ...t, ...data } : t)),
+    }));
+
+    if (!supabase) return;
+    try {
+      const test = get().tests.find((t) => t.id === id);
+      if (!test) return;
+
+      const { error } = await supabase
+        .from('tests')
+        .update({
+          title: test.title,
+          protocol: test.protocol,
+          value: test.value,
+          unit: test.unit,
+          tested_at: test.testedAt,
+          notes: serializeNotesAndSets(test.notes, test.sets, test.targetMetric),
+        })
+        .eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      console.warn('Error al actualizar test en Supabase:', err);
+    }
+  },
+
+  deleteTest: async (id) => {
+    set((state) => ({ tests: state.tests.filter((t) => t.id !== id) }));
+
+    if (!supabase) return;
+    try {
+      const { error } = await supabase.from('tests').delete().eq('id', id);
+      if (error) throw error;
+    } catch (err) {
+      console.warn('Error al eliminar test en Supabase:', err);
+    }
+  },
+
+  getTestsByTitle: (title) => {
+    return get()
+      .tests.filter((t) => t.title.toLowerCase() === title.toLowerCase())
+      .sort((a, b) => new Date(b.testedAt).getTime() - new Date(a.testedAt).getTime());
+  },
+
+  getPreviousTest: (title, currentTestDate) => {
+    const currentTimestamp = new Date(currentTestDate).getTime();
+    const sameTypeTests = get()
+      .tests.filter(
+        (t) =>
+          t.title.toLowerCase() === title.toLowerCase() &&
+          new Date(t.testedAt).getTime() < currentTimestamp
+      )
+      .sort((a, b) => new Date(b.testedAt).getTime() - new Date(a.testedAt).getTime());
+
+    return sameTypeTests[0];
+  },
+
+  getUniqueTitles: () => {
+    const titles = get().tests.map((t) => t.title);
+    return Array.from(new Set(titles));
+  },
+
+  clearTestStore: () => {
+    set({ tests: [], userId: null, isLoading: false });
+  },
+}));
 
 /**
  * Helper para calcular la diferencia (delta) entre dos tests del mismo tipo
@@ -160,7 +272,7 @@ export interface TestFatigueSummary {
  * Helper para calcular la fatiga acumulada entre series de un mismo test
  */
 export function calculateTestFatigue(
-  sets?: import('../types').TestSet[],
+  sets?: TestSet[],
   targetMetric: 'higher_is_better' | 'lower_is_better' = 'higher_is_better'
 ): TestFatigueSummary | null {
   if (!sets || sets.length === 0) return null;

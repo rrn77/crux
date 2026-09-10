@@ -32,7 +32,6 @@ import { WorkoutSession, TestRecord } from '@/lib/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { syncService } from '@/lib/supabase/syncService';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -57,11 +56,10 @@ export default function HistoryPage() {
 
   const handleConfirmDeleteSession = async () => {
     if (!deletingSession) return;
-    const { id, title } = deletingSession;
+    const { id } = deletingSession;
     setIsDeletingSession(true);
     try {
-      deleteSession(id);
-      await syncService.deleteSession(id, title);
+      await deleteSession(id);
     } catch (err) {
       console.warn('Error al eliminar sesión:', err);
     } finally {

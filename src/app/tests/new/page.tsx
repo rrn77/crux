@@ -19,8 +19,6 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useTestStore, calculateTestFatigue } from '@/lib/store/testStore';
-import { useAuthStore } from '@/lib/supabase/authStore';
-import { syncService } from '@/lib/supabase/syncService';
 import { TestSet } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -207,7 +205,7 @@ export default function NewTestPage() {
         ? Math.min(...validTestSets.map((s) => s.value))
         : Math.max(...validTestSets.map((s) => s.value));
 
-    const newTest = addTest({
+    await addTest({
       title: data.title.trim(),
       protocol: data.protocol?.trim() || undefined,
       value: peakValue,
@@ -217,11 +215,6 @@ export default function NewTestPage() {
       sets: validTestSets.length > 1 ? validTestSets : undefined,
       targetMetric,
     });
-
-    const user = useAuthStore.getState().user;
-    if (user) {
-      await syncService.pushTest(newTest, user.id);
-    }
 
     router.push('/tests');
   };

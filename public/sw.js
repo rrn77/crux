@@ -1,57 +1,14 @@
-const CACHE_NAME = 'crux-v1';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/manifest.json',
-  '/icons/icon-192.svg',
-  '/icons/icon-512.svg',
-];
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
+// CRUX requiere conexión a Supabase para leer y guardar datos: este Service Worker
+// ya no cachea páginas ni datos para uso sin conexión, solo permite que la PWA sea instalable.
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      );
+      return Promise.all(keys.map((key) => caches.delete(key)));
     })
   );
   self.clients.claim();
-});
-
-self.addEventListener('fetch', (event) => {
-  // Estrategia Network First con fallback a Cache para sesión offline
-  if (event.request.method !== 'GET') return;
-
-  event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        if (response && response.status === 200) {
-          const responseClone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-        }
-        return response;
-      })
-      .catch(() => {
-        return caches.match(event.request).then((cachedResponse) => {
-          if (cachedResponse) return cachedResponse;
-          if (event.request.headers.get('accept')?.includes('text/html')) {
-            return caches.match('/');
-          }
-        });
-      })
-  );
 });
