@@ -19,6 +19,7 @@ import {
   CheckCircle2,
   Dumbbell,
   Layers,
+  Trash2,
 } from 'lucide-react';
 import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
@@ -26,21 +27,40 @@ import { useTestStore } from '@/lib/store/testStore';
 import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { TemplatePickerModal } from '@/components/workout/TemplatePickerModal';
+import { syncService } from '@/lib/supabase/syncService';
 import { WorkoutTemplate, WorkoutSession } from '@/lib/types';
 
 export default function HomePage() {
   const router = useRouter();
-  const { templates, sessions, getTodaySession } = useWorkoutStore();
+  const { templates, sessions, getTodaySession, deleteSession } = useWorkoutStore();
   const { startWorkout } = useActiveWorkoutStore();
   const { tests } = useTestStore();
 
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [deletingSession, setDeletingSession] = useState<{ id: string; title: string } | null>(null);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const handleConfirmDeleteSession = async () => {
+    if (!deletingSession) return;
+    const { id, title } = deletingSession;
+    setIsDeletingSession(true);
+    try {
+      deleteSession(id);
+      await syncService.deleteSession(id, title);
+    } catch (err) {
+      console.warn('Error al eliminar sesión:', err);
+    } finally {
+      setIsDeletingSession(false);
+      setDeletingSession(null);
+    }
+  };
 
   const todayIso = getLocalDateIsoString();
 
@@ -170,7 +190,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 pt-1">
+            <div className="flex items-center gap-2.5 pt-1 flex-wrap">
               <Link href={`/history/${todaySession.id}`}>
                 <Button variant="secondary" size="md" className="bg-white text-moss font-bold shadow-md">
                   Ver Resumen de Sesión
@@ -183,6 +203,15 @@ export default function HomePage() {
                   Otra Sesión
                 </Button>
               </Link>
+              <button
+                type="button"
+                onClick={() => setDeletingSession({ id: todaySession.id, title: todaySession.title })}
+                title="Eliminar sesión"
+                aria-label="Eliminar sesión"
+                className="p-2.5 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center justify-center ml-auto"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         ) : (
@@ -235,7 +264,7 @@ export default function HomePage() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2.5 pt-1">
+              <div className="flex items-center gap-2.5 pt-1 flex-wrap">
                 <Button
                   variant="secondary"
                   size="lg"
@@ -255,6 +284,16 @@ export default function HomePage() {
                     Editar Sesión
                   </Button>
                 </Link>
+
+                <button
+                  type="button"
+                  onClick={() => setDeletingSession({ id: todaySession.id, title: todaySession.title })}
+                  title="Eliminar o cancelar sesión"
+                  aria-label="Eliminar o cancelar sesión"
+                  className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center justify-center ml-auto"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
               </div>
             </div>
           </div>
@@ -565,6 +604,23 @@ export default function HomePage() {
         isOpen={isTemplateModalOpen}
         onClose={() => setIsTemplateModalOpen(false)}
         onSelectTemplate={handleStartTemplate}
+      />
+
+      {/* Modal de Confirmación para Eliminar Sesión */}
+      <ConfirmModal
+        isOpen={Boolean(deletingSession)}
+        onClose={() => !isDeletingSession && setDeletingSession(null)}
+        onConfirm={handleConfirmDeleteSession}
+        title="¿Eliminar sesión de entrenamiento?"
+        description={
+          deletingSession
+            ? `¿Estás seguro de que deseas eliminar la sesión "${deletingSession.title}"? Esta acción no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar Sesión"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={isDeletingSession}
       />
     </div>
   );

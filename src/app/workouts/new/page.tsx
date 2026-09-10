@@ -16,7 +16,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { WorkoutBlock, WorkoutTemplate } from '@/lib/types';
-import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
+import { useWorkoutStore, getLocalDateIsoString, generateUUID } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { syncService } from '@/lib/supabase/syncService';
 import { useAuthStore } from '@/lib/supabase/authStore';
@@ -73,7 +73,7 @@ function WorkoutBuilderContent() {
         setBlocks(
           tpl.blocks.map((b, idx) => ({
             ...b,
-            id: `block-${Date.now()}-${idx}`,
+            id: generateUUID(),
             position: idx,
           }))
         );
@@ -141,7 +141,7 @@ function WorkoutBuilderContent() {
       // Añadir los bloques de la plantilla a la sesión actual
       const newBlocks: WorkoutBlock[] = template.blocks.map((b, idx) => ({
         ...b,
-        id: `block-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 5)}`,
+        id: generateUUID(),
         position: blocks.length + idx,
       }));
       setBlocks((prev) => [...prev, ...newBlocks]);

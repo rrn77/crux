@@ -16,7 +16,7 @@ import {
 } from '../timer/timerEngine';
 import { audioFeedback } from '../timer/audioService';
 import { useSettingsStore } from './settingsStore';
-import { useWorkoutStore } from './workoutStore';
+import { useWorkoutStore, generateUUID } from './workoutStore';
 
 interface ActiveWorkoutStore {
   session: WorkoutSession | null;
@@ -79,11 +79,11 @@ export const useActiveWorkoutStore = create<ActiveWorkoutStore>()(
         if (!blocks || blocks.length === 0) return;
 
         const now = new Date().toISOString();
-        const sessionId = existingSessionId || `session-${Date.now()}`;
+        const sessionId = existingSessionId || generateUUID();
         const initialLogs: BlockLog[] = blocks.map((b, idx) => {
           const { totalSets } = getBlockTargetUnits(b);
           return {
-            id: `log-${Date.now()}-${idx}`,
+            id: generateUUID(),
             sessionId,
             blockId: b.id,
             position: idx,

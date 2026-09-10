@@ -63,7 +63,7 @@ export default function HistoryDetailPage() {
     setIsDeleting(true);
     try {
       deleteSession(sessionId);
-      await syncService.deleteSession(sessionId);
+      await syncService.deleteSession(sessionId, session?.title);
       router.push('/history');
     } catch (err) {
       console.warn('Error al eliminar sesión:', err);

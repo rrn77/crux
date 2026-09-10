@@ -82,10 +82,11 @@ export default function TemplatesPage() {
 
   const handleConfirmDelete = async () => {
     if (!deletingTemplate) return;
+    const { id, title } = deletingTemplate;
     setIsDeleting(true);
     try {
-      deleteTemplate(deletingTemplate.id);
-      await syncService.deleteTemplate(deletingTemplate.id);
+      deleteTemplate(id);
+      await syncService.deleteTemplate(id, title);
     } catch (err) {
       console.warn('Error al eliminar plantilla:', err);
     } finally {

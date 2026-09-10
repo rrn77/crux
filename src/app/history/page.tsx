@@ -22,6 +22,7 @@ import {
   TrendingDown,
   Minus,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
@@ -30,12 +31,14 @@ import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHel
 import { WorkoutSession, TestRecord } from '@/lib/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { syncService } from '@/lib/supabase/syncService';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 export default function HistoryPage() {
   const router = useRouter();
-  const { sessions } = useWorkoutStore();
+  const { sessions, deleteSession } = useWorkoutStore();
   const { tests, getPreviousTest } = useTestStore();
   const { startWorkout } = useActiveWorkoutStore();
 
@@ -47,6 +50,25 @@ export default function HistoryPage() {
   const [selectedDateStr, setSelectedDateStr] = useState<string>(todayIso);
   // Modo de visualización: 'calendar' o 'list'
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+
+  // Estado para modal de confirmación de eliminación de sesión
+  const [deletingSession, setDeletingSession] = useState<{ id: string; title: string } | null>(null);
+  const [isDeletingSession, setIsDeletingSession] = useState(false);
+
+  const handleConfirmDeleteSession = async () => {
+    if (!deletingSession) return;
+    const { id, title } = deletingSession;
+    setIsDeletingSession(true);
+    try {
+      deleteSession(id);
+      await syncService.deleteSession(id, title);
+    } catch (err) {
+      console.warn('Error al eliminar sesión:', err);
+    } finally {
+      setIsDeletingSession(false);
+      setDeletingSession(null);
+    }
+  };
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth(); // 0-indexed (0 = Ene, 11 = Dic)
@@ -563,6 +585,16 @@ export default function HistoryPage() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setDeletingSession({ id: session.id, title: session.title })}
+                          title="Eliminar sesión"
+                          aria-label="Eliminar sesión"
+                          className="text-xs font-bold text-red-600 hover:text-red-700 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors flex items-center justify-center"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+
                         {session.status === 'completed' ? (
                           <Link href={`/history/${session.id}`}>
                             <Button variant="outline" size="sm">
@@ -697,13 +729,12 @@ export default function HistoryPage() {
               });
 
               return (
-                <Link
+                <div
                   key={session.id}
-                  href={`/history/${session.id}`}
                   className="p-4 rounded-2xl bg-white dark:bg-graphite-900 border border-chalk-300 dark:border-graphite-800 shadow-sm hover:border-terracotta/60 transition-all block group"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    <Link href={`/history/${session.id}`} className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <h2 className="font-bold text-base text-graphite-900 dark:text-graphite-100 truncate group-hover:text-terracotta transition-colors">
                           {session.title}
@@ -732,11 +763,31 @@ export default function HistoryPage() {
                           <span>{session.notes}</span>
                         </p>
                       )}
-                    </div>
+                    </Link>
 
-                    <ChevronRight className="w-5 h-5 text-graphite-400 group-hover:text-terracotta group-hover:translate-x-0.5 transition-all shrink-0 mt-1" />
+                    <div className="flex items-center gap-1.5 shrink-0 mt-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDeletingSession({ id: session.id, title: session.title });
+                        }}
+                        title="Eliminar sesión"
+                        aria-label="Eliminar sesión"
+                        className="text-xs font-bold text-red-600 hover:text-red-700 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors flex items-center justify-center"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+
+                      <Link href={`/history/${session.id}`}>
+                        <div className="p-1 rounded-lg text-graphite-400 group-hover:text-terracotta group-hover:translate-x-0.5 transition-all">
+                          <ChevronRight className="w-5 h-5" />
+                        </div>
+                      </Link>
+                    </div>
                   </div>
-                </Link>
+                </div>
               );
             })
           ) : (
@@ -757,6 +808,23 @@ export default function HistoryPage() {
           )}
         </div>
       )}
+
+      {/* Modal de Confirmación para Eliminar Sesión */}
+      <ConfirmModal
+        isOpen={Boolean(deletingSession)}
+        onClose={() => !isDeletingSession && setDeletingSession(null)}
+        onConfirm={handleConfirmDeleteSession}
+        title="¿Eliminar sesión de entrenamiento?"
+        description={
+          deletingSession
+            ? `¿Estás seguro de que deseas eliminar la sesión "${deletingSession.title}"? Esta acción no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar Sesión"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={isDeletingSession}
+      />
     </div>
   );
 }

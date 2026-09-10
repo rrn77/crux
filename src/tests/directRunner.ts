@@ -284,5 +284,49 @@ test('workoutStore: getTodaySession prioridad programada/en progreso', () => {
   assert.strictEqual(todaySession?.id, 's-pending', 'Debe priorizar la sesión pendiente/programada');
 });
 
+test('workoutStore: deleteTemplate elimina correctamente la plantilla por ID', () => {
+  useWorkoutStore.getState().clearWorkoutStore();
+
+  const tpl = useWorkoutStore.getState().addTemplate({
+    title: 'Suspensiones 7/3 Intermitentes',
+    estimatedDurationSeconds: 600,
+    blocks: [],
+  });
+
+  assert.strictEqual(useWorkoutStore.getState().templates.length, 1);
+  assert.strictEqual(useWorkoutStore.getState().templates[0].id, tpl.id);
+
+  // Validar formato UUID generado
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tpl.id);
+  assert.strictEqual(isUuid, true, 'El ID de la plantilla debe ser un UUID válido');
+
+  useWorkoutStore.getState().deleteTemplate(tpl.id);
+  assert.strictEqual(useWorkoutStore.getState().templates.length, 0, 'La plantilla debe haber sido eliminada');
+});
+
+test('workoutStore: deleteSession elimina correctamente la sesión por ID', () => {
+  useWorkoutStore.getState().clearWorkoutStore();
+
+  const session = useWorkoutStore.getState().scheduleSession({
+    title: 'Fuerza Bloque',
+    scheduledDate: '2026-09-12',
+    status: 'scheduled',
+    blocks: [],
+    logs: [],
+    durationSeconds: 0,
+    startedAt: '2026-09-12T10:00:00.000Z',
+  });
+
+  assert.strictEqual(useWorkoutStore.getState().sessions.length, 1);
+  assert.strictEqual(useWorkoutStore.getState().sessions[0].id, session.id);
+
+  // Validar formato UUID generado
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.id);
+  assert.strictEqual(isUuid, true, 'El ID de la sesión debe ser un UUID válido');
+
+  useWorkoutStore.getState().deleteSession(session.id);
+  assert.strictEqual(useWorkoutStore.getState().sessions.length, 0, 'La sesión debe haber sido eliminada');
+});
+
 console.log(`\n🎉 Resumen: ${passed} pruebas superadas, ${failed} fallidas.\n`);
 if (failed > 0) process.exit(1);

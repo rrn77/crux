@@ -10,6 +10,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { formatBlockSummary } from '@/lib/timer/durationHelper';
+import { generateUUID } from '@/lib/store/workoutStore';
 
 const blockSchema = z.object({
   title: z.string().min(1, 'El título del bloque es obligatorio'),
@@ -151,7 +152,7 @@ export function BlockFormModal({
     const totalRestSec = data.restMinutes * 60 + data.restSeconds;
 
     const block: WorkoutBlock = {
-      id: initialBlock?.id || `block-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      id: initialBlock?.id || generateUUID(),
       position: initialBlock?.position ?? 0,
       title: data.title,
       type: data.type,

@@ -66,10 +66,11 @@ class SupabaseSyncService {
   async syncTemplates(userId: string) {
     if (!supabase) return;
 
-    // 1. Obtener plantillas remotas (propias y predeterminadas)
+    // 1. Obtener plantillas remotas (propias y no por defecto)
     const { data: remoteTemplates, error } = await supabase
       .from('workout_templates')
-      .select('*, workout_blocks(*)');
+      .select('*, workout_blocks(*)')
+      .eq('user_id', userId);
 
     if (error || !remoteTemplates) return;
 
@@ -106,7 +107,7 @@ class SupabaseSyncService {
 
     // Subir plantillas locales no sincronizadas
     for (const localTpl of localStore.templates) {
-      if (!localTpl.isDefault && !remoteIds.has(localTpl.id)) {
+      if (!remoteIds.has(localTpl.id)) {
         await this.pushTemplate(localTpl, userId);
       }
     }
@@ -118,29 +119,44 @@ class SupabaseSyncService {
   /**
    * Subir una plantilla a Supabase
    */
-  async pushTemplate(template: WorkoutTemplate, userId: string) {
-    if (!supabase) return;
+  async pushTemplate(template: WorkoutTemplate, userId: string): Promise<string | undefined> {
+    if (!supabase) return undefined;
 
     try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(template.id);
+      const payload: Record<string, unknown> = {
+        user_id: userId,
+        title: template.title,
+        description: template.description,
+        estimated_duration_seconds: template.estimatedDurationSeconds,
+        is_default: false,
+      };
+
+      if (isUuid) {
+        payload.id = template.id;
+      }
+
       const { data: tplData, error: tplErr } = await supabase
         .from('workout_templates')
-        .upsert({
-          id: template.id.startsWith('template-') ? undefined : template.id,
-          user_id: userId,
-          title: template.title,
-          description: template.description,
-          estimated_duration_seconds: template.estimatedDurationSeconds,
-          is_default: false,
-        })
-        .select()
+        .upsert(payload)
+        .select('id')
         .single();
 
-      if (tplErr || !tplData) return;
+      if (tplErr || !tplData) {
+        console.warn('Error al guardar plantilla en Supabase:', tplErr);
+        return undefined;
+      }
 
       const templateId = tplData.id;
 
-      // Subir bloques asociados
+      if (templateId && templateId !== template.id) {
+        useWorkoutStore.getState().updateTemplate(template.id, { id: templateId });
+      }
+
+      // Subir bloques asociados (limpiando previos para evitar duplicados en updates)
       if (template.blocks && template.blocks.length > 0) {
+        await supabase.from('workout_blocks').delete().eq('template_id', templateId);
+
         const blocksToInsert = template.blocks.map((b, idx) => ({
           template_id: templateId,
           position: idx,
@@ -159,8 +175,11 @@ class SupabaseSyncService {
 
         await supabase.from('workout_blocks').insert(blocksToInsert);
       }
+
+      return templateId;
     } catch (err) {
       console.warn('Error al guardar plantilla en Supabase:', err);
+      return undefined;
     }
   }
 
@@ -173,6 +192,7 @@ class SupabaseSyncService {
     const { data: remoteSessions, error } = await supabase
       .from('workout_sessions')
       .select('*, block_logs(*)')
+      .eq('user_id', userId)
       .order('started_at', { ascending: false });
 
     if (error || !remoteSessions) return;
@@ -216,39 +236,55 @@ class SupabaseSyncService {
       }
     }
 
-    if (formattedSessions.length > 0) {
-      useWorkoutStore.setState({ sessions: formattedSessions });
-    }
+    useWorkoutStore.setState({ sessions: formattedSessions });
   }
 
   /**
-   * Subir una sesión completada a Supabase
+   * Subir una sesión completada o programada a Supabase
    */
-  async pushSession(session: WorkoutSession, userId: string) {
-    if (!supabase) return;
+  async pushSession(session: WorkoutSession, userId: string): Promise<string | undefined> {
+    if (!supabase) return undefined;
 
     try {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.id);
+      const isTemplateUuid = session.templateId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.templateId);
+
+      const payload: Record<string, unknown> = {
+        user_id: userId,
+        template_id: isTemplateUuid ? session.templateId : null,
+        title: session.title,
+        started_at: session.startedAt,
+        completed_at: session.completedAt,
+        duration_seconds: session.durationSeconds,
+        overall_rpe: session.overallRpe,
+        status: session.status,
+        notes: session.notes,
+      };
+
+      if (isUuid) {
+        payload.id = session.id;
+      }
+
       const { data: sessionData, error: sessionErr } = await supabase
         .from('workout_sessions')
-        .upsert({
-          user_id: userId,
-          template_id: session.templateId && !session.templateId.startsWith('template-') ? session.templateId : null,
-          title: session.title,
-          started_at: session.startedAt,
-          completed_at: session.completedAt,
-          duration_seconds: session.durationSeconds,
-          overall_rpe: session.overallRpe,
-          status: session.status,
-          notes: session.notes,
-        })
-        .select()
+        .upsert(payload)
+        .select('id')
         .single();
 
-      if (sessionErr || !sessionData) return;
+      if (sessionErr || !sessionData) {
+        console.warn('Error al guardar sesión en Supabase:', sessionErr);
+        return undefined;
+      }
 
       const sessionId = sessionData.id;
 
+      if (sessionId && sessionId !== session.id) {
+        useWorkoutStore.getState().updateSession(session.id, { id: sessionId });
+      }
+
       if (session.logs && session.logs.length > 0) {
+        await supabase.from('block_logs').delete().eq('session_id', sessionId);
+
         const logsToInsert = session.logs.map((log, idx) => ({
           session_id: sessionId,
           position: idx,
@@ -264,8 +300,11 @@ class SupabaseSyncService {
 
         await supabase.from('block_logs').insert(logsToInsert);
       }
+
+      return sessionId;
     } catch (err) {
       console.warn('Error al guardar sesión en Supabase:', err);
+      return undefined;
     }
   }
 
@@ -395,21 +434,59 @@ class SupabaseSyncService {
   /**
    * Eliminar una plantilla de Supabase
    */
-  async deleteTemplate(id: string) {
+  async deleteTemplate(id: string, title?: string) {
     if (!supabase) return;
     try {
-      await supabase.from('workout_templates').delete().eq('id', id);
-    } catch {}
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (isUuid) {
+        // Eliminar bloques asociados primero
+        await supabase.from('workout_blocks').delete().eq('template_id', id);
+        const { error } = await supabase.from('workout_templates').delete().eq('id', id);
+        if (error) {
+          console.warn('Error al borrar plantilla en Supabase:', error);
+        }
+      } else if (title) {
+        // Fallback: Si el ID era local no-UUID, buscar y eliminar por título
+        const { data } = await supabase.from('workout_templates').select('id').eq('title', title);
+        if (data && data.length > 0) {
+          for (const item of data) {
+            await supabase.from('workout_blocks').delete().eq('template_id', item.id);
+            await supabase.from('workout_templates').delete().eq('id', item.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error al eliminar plantilla de Supabase:', err);
+    }
   }
 
   /**
    * Eliminar una sesión de Supabase
    */
-  async deleteSession(id: string) {
+  async deleteSession(id: string, title?: string) {
     if (!supabase) return;
     try {
-      await supabase.from('workout_sessions').delete().eq('id', id);
-    } catch {}
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (isUuid) {
+        // Eliminar logs asociados primero
+        await supabase.from('block_logs').delete().eq('session_id', id);
+        const { error } = await supabase.from('workout_sessions').delete().eq('id', id);
+        if (error) {
+          console.warn('Error al borrar sesión en Supabase:', error);
+        }
+      } else if (title) {
+        // Fallback: Si el ID era local no-UUID, buscar y eliminar por título
+        const { data } = await supabase.from('workout_sessions').select('id').eq('title', title);
+        if (data && data.length > 0) {
+          for (const item of data) {
+            await supabase.from('block_logs').delete().eq('session_id', item.id);
+            await supabase.from('workout_sessions').delete().eq('id', item.id);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Error al eliminar sesión de Supabase:', err);
+    }
   }
 
   /**
