@@ -1,12 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowLeft, Save, Sparkles, Activity } from 'lucide-react';
+import { ArrowLeft, Save, History, Activity, Sparkles } from 'lucide-react';
 import { useTestStore } from '@/lib/store/testStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -22,32 +22,9 @@ const testSchema = z.object({
 
 type TestFormData = z.infer<typeof testSchema>;
 
-const PRESET_TESTS = [
-  {
-    title: 'Suspensiones 20 mm (Lastre máx)',
-    protocol: '5 segundos en semiarqueo estricto',
-    unit: 'kg',
-  },
-  {
-    title: 'Dominada con Lastre (1RM)',
-    protocol: '1 repetición completa pasando barbilla',
-    unit: 'kg',
-  },
-  {
-    title: 'Tiempo Máx Suspensión 20 mm',
-    protocol: 'Suspensión isométrica peso corporal',
-    unit: 's',
-  },
-  {
-    title: 'Máximo Grado de Bloque Encadenado',
-    protocol: 'Grado Font / V-Scale',
-    unit: 'grado',
-  },
-];
-
 export default function NewTestPage() {
   const router = useRouter();
-  const { addTest } = useTestStore();
+  const { tests, addTest } = useTestStore();
 
   const todayIso = new Date().toISOString().split('T')[0];
 
@@ -68,10 +45,37 @@ export default function NewTestPage() {
     },
   });
 
-  const handleApplyPreset = (preset: (typeof PRESET_TESTS)[0]) => {
-    setValue('title', preset.title);
-    setValue('protocol', preset.protocol);
-    setValue('unit', preset.unit);
+  // Extraer los tests únicos ya realizados por el usuario (ordenados por fecha más reciente)
+  const previousTestsList = useMemo(() => {
+    const map = new Map<
+      string,
+      { title: string; protocol?: string; unit: string; lastValue: number; lastDate: string }
+    >();
+
+    const sorted = [...tests].sort(
+      (a, b) => new Date(b.testedAt).getTime() - new Date(a.testedAt).getTime()
+    );
+
+    sorted.forEach((t) => {
+      const key = t.title.toLowerCase().trim();
+      if (!map.has(key)) {
+        map.set(key, {
+          title: t.title,
+          protocol: t.protocol,
+          unit: t.unit,
+          lastValue: t.value,
+          lastDate: t.testedAt,
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [tests]);
+
+  const handleSelectPreviousTest = (item: { title: string; protocol?: string; unit: string }) => {
+    setValue('title', item.title, { shouldValidate: true });
+    setValue('protocol', item.protocol || '', { shouldValidate: true });
+    setValue('unit', item.unit, { shouldValidate: true });
   };
 
   const onSubmit = (data: TestFormData) => {
@@ -109,25 +113,30 @@ export default function NewTestPage() {
         </p>
       </div>
 
-      {/* Sugerencias Rápidas */}
-      <div className="space-y-2">
-        <label className="text-xs font-semibold uppercase tracking-wider text-graphite-600 dark:text-graphite-400 flex items-center gap-1">
-          <Sparkles className="w-3.5 h-3.5 text-terracotta" />
-          Plantillas Rápidas de Test
-        </label>
-        <div className="flex items-center gap-2 overflow-x-auto pb-1">
-          {PRESET_TESTS.map((preset) => (
-            <button
-              key={preset.title}
-              type="button"
-              onClick={() => handleApplyPreset(preset)}
-              className="px-3 py-2 rounded-xl text-xs font-bold bg-white dark:bg-graphite-900 border border-chalk-300 dark:border-graphite-800 text-graphite-800 dark:text-graphite-200 hover:border-terracotta/50 whitespace-nowrap shadow-sm active:scale-95 transition-all"
-            >
-              {preset.title}
-            </button>
-          ))}
+      {/* Sugerencias basadas en tests ya realizados por el usuario */}
+      {previousTestsList.length > 0 && (
+        <div className="space-y-2.5 bg-white dark:bg-graphite-900 p-4 rounded-3xl border border-chalk-300 dark:border-graphite-800 shadow-sm">
+          <label className="text-xs font-bold uppercase tracking-wider text-graphite-700 dark:text-graphite-300 flex items-center gap-1.5">
+            <History className="w-4 h-4 text-terracotta" />
+            Tus Tests Habituales (Toca para autocompletar)
+          </label>
+          <div className="flex flex-wrap gap-2 pt-0.5">
+            {previousTestsList.map((item) => (
+              <button
+                key={item.title}
+                type="button"
+                onClick={() => handleSelectPreviousTest(item)}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-chalk-100 dark:bg-graphite-800 border border-chalk-200 dark:border-graphite-700 text-graphite-800 dark:text-graphite-200 hover:border-terracotta hover:bg-terracotta-50 dark:hover:bg-terracotta-950/30 hover:text-terracotta transition-all shadow-sm flex items-center gap-1.5 active:scale-95"
+              >
+                <span>{item.title}</span>
+                <span className="text-[10px] font-mono text-graphite-400 bg-white dark:bg-graphite-900 px-1.5 py-0.5 rounded-md border border-chalk-200 dark:border-graphite-800">
+                  {item.unit}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Formulario */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 bg-white dark:bg-graphite-900 p-5 rounded-3xl border border-chalk-300 dark:border-graphite-800 shadow-sm">
