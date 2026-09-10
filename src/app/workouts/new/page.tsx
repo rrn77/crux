@@ -155,24 +155,29 @@ function WorkoutBuilderContent() {
     setEditingBlock(null);
   };
 
-  // Al seleccionar una plantilla: Abrir el configurador inline para ajustar series/bloques/descanso
+  // Al seleccionar una plantilla: Abrir el configurador inline para ajustar series, reps, lastre y notas
   const handleSelectTemplateForCustomization = (template: WorkoutTemplate) => {
     const firstBlock = template.blocks[0];
     const initialForCustomization: WorkoutBlock = firstBlock
       ? {
           ...firstBlock,
           id: generateUUID(),
+          templateId: template.id,
+          templateTitle: template.title,
           position: blocks.length,
           title: firstBlock.title || template.title,
           notes: firstBlock.notes || template.description || undefined,
         }
       : {
           id: generateUUID(),
+          templateId: template.id,
+          templateTitle: template.title,
           position: blocks.length,
           title: template.title,
           type: 'intervals',
           sets: 4,
-          restDurationSeconds: 90,
+          repetitions: 5,
+          restDurationSeconds: 120,
           notes: template.description,
         };
 

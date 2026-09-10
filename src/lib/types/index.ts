@@ -5,19 +5,22 @@ export type TimerPhase = 'idle' | 'work' | 'rest' | 'blockCompleted' | 'sessionC
 export interface WorkoutBlock {
   id: string;
   templateId?: string;
+  templateTitle?: string;
   position: number;
   title: string;
   type: BlockType;
-  // Campos específicos según tipo
-  sets?: number;                  // Para intervals y reps
-  workDurationSeconds?: number;   // Para intervals (ej. 180 para 3:00)
-  restDurationSeconds?: number;   // Para intervals, reps, attempts, problems
-  repetitions?: number;           // Para reps
-  attempts?: number;              // Para attempts y problems
-  problems?: number;              // Para problems (número de bloques)
-  movements?: number;             // Para problems (opcional: movimientos por bloque)
-  target?: string;                // Objetivo libre (ej. "7a+", "20mm", "RPE 8")
+  // Campos del modelo unificado
+  sets?: number;                  // Series
+  repetitions?: number;           // Repeticiones / bloques
+  workDurationSeconds?: number;   // Tiempo de trabajo (si es por tiempo)
+  restBetweenRepsSeconds?: number;// Descanso entre repeticiones
+  restDurationSeconds?: number;   // Descanso entre series
+  load?: string;                  // Lastre / Carga (ej. "+15 kg", "20 mm")
+  target?: string;                // Objetivo / Lastre libre
   notes?: string;                 // Notas o indicaciones
+  attempts?: number;
+  problems?: number;
+  movements?: number;
 }
 
 export interface WorkoutTemplate {
@@ -82,7 +85,7 @@ export interface TestRecord {
   testedAt: string;       // ISO date
   notes?: string;
   sets?: TestSet[];       // Múltiples series para análisis de fatiga rápida
-  targetMetric?: 'higher_is_better' | 'lower_is_better'; // 'higher_is_better' (más es mejor) o 'lower_is_better' (menos es mejor: ej. mm de regleta)
+  targetMetric?: 'higher_is_better' | 'lower_is_better';
   createdAt: string;
 }
 

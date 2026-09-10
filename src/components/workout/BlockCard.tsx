@@ -77,11 +77,11 @@ export function BlockCard({
           {formatBlockSummary(block)}
         </p>
 
-        {block.target && (
+        {(block.load || block.target) && (
           <p className="text-xs text-graphite-600 dark:text-graphite-400 mt-1 flex items-center gap-1.5">
-            <span className="font-semibold text-graphite-500">Objetivo:</span>
-            <span className="bg-chalk-200/80 dark:bg-graphite-800 px-2 py-0.5 rounded text-[11px] font-medium text-graphite-800 dark:text-graphite-200">
-              {block.target}
+            <span className="font-semibold text-graphite-500">Lastre / Carga:</span>
+            <span className="bg-terracotta-50 dark:bg-terracotta-950/40 text-terracotta px-2 py-0.5 rounded-md text-[11px] font-bold">
+              {block.load || block.target}
             </span>
           </p>
         )}
