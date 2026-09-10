@@ -5,37 +5,54 @@ import type { WorkoutBlock, BlockType } from '../types/index';
  */
 export function calculateBlockEstimatedDuration(block: WorkoutBlock): number {
   const rest = block.restDurationSeconds ?? 60;
+  const sets = block.sets ?? 1;
+
+  if (block.workDurationSeconds && block.workDurationSeconds > 0) {
+    return sets * (block.workDurationSeconds + rest);
+  }
+
+  if (block.problems && block.problems > 0) {
+    const attempts = block.attempts ?? 1;
+    const moves = block.movements ?? 4;
+    const estimatedWorkPerAttempt = Math.max(15, moves * 3);
+    return sets * block.problems * attempts * (estimatedWorkPerAttempt + rest);
+  }
+
+  if (block.repetitions && block.repetitions > 0) {
+    const estimatedWorkPerRep = 3.5;
+    const work = Math.round(block.repetitions * estimatedWorkPerRep);
+    return sets * (work + rest);
+  }
+
+  if (block.attempts && block.attempts > 0) {
+    const estimatedWorkPerAttempt = 25;
+    return sets * block.attempts * (estimatedWorkPerAttempt + rest);
+  }
 
   switch (block.type) {
     case 'intervals': {
-      const sets = block.sets ?? 1;
       const work = block.workDurationSeconds ?? 30;
       return sets * (work + rest);
     }
     case 'reps': {
-      const sets = block.sets ?? 1;
       const reps = block.repetitions ?? 10;
-      const estimatedWorkPerRep = 3.5; // Segundos promedio por repetición
-      const work = Math.round(reps * estimatedWorkPerRep);
+      const work = Math.round(reps * 3.5);
       return sets * (work + rest);
     }
     case 'attempts': {
       const attempts = block.attempts ?? 3;
-      const estimatedWorkPerAttempt = 25; // 25s por intento en bloque/vía
-      return attempts * (estimatedWorkPerAttempt + rest);
+      return attempts * (25 + rest);
     }
     case 'problems': {
       const problems = block.problems ?? 1;
-      const attempts = block.attempts ?? 3;
+      const attempts = block.attempts ?? 1;
       const moves = block.movements ?? 5;
-      const estimatedWorkPerAttempt = Math.max(15, moves * 3);
-      return problems * attempts * (estimatedWorkPerAttempt + rest);
+      const work = Math.max(15, moves * 3);
+      return problems * attempts * (work + rest);
     }
-    case 'free': {
-      return 300; // 5 minutos por defecto para registro libre
-    }
+    case 'free':
     default:
-      return 0;
+      return 300;
   }
 }
 
@@ -83,40 +100,52 @@ export function formatDurationHuman(totalSeconds: number): string {
 }
 
 /**
- * Genera el resumen visual y legible de la estructura del bloque
- * Ej: "4 series × 3:00 / descanso 1:00"
+ * Genera el resumen visual y legible de la estructura y prescripción del ejercicio
+ * Ej: "4 series × 4 bloques (4 movs) / descanso 02:00"
  */
 export function formatBlockSummary(block: WorkoutBlock): string {
-  const restStr = block.restDurationSeconds !== undefined
+  const parts: string[] = [];
+  const sets = block.sets || 1;
+
+  const restStr = block.restDurationSeconds !== undefined && block.restDurationSeconds > 0
     ? `descanso ${formatSecondsToTime(block.restDurationSeconds)}`
     : '';
 
-  switch (block.type) {
-    case 'intervals': {
-      const sets = block.sets ?? 1;
-      const work = formatSecondsToTime(block.workDurationSeconds ?? 0);
-      return `${sets} series × ${work}${restStr ? ` / ${restStr}` : ''}`;
-    }
-    case 'reps': {
-      const sets = block.sets ?? 1;
-      const reps = block.repetitions ?? 0;
-      return `${sets} series × ${reps} reps${restStr ? ` / ${restStr}` : ''}`;
-    }
-    case 'attempts': {
-      const attempts = block.attempts ?? 1;
-      return `${attempts} intentos${restStr ? ` / ${restStr}` : ''}`;
-    }
-    case 'problems': {
-      const problems = block.problems ?? 1;
-      const attempts = block.attempts ?? 1;
-      const movs = block.movements ? ` de ${block.movements} movs` : '';
-      return `${problems} bloques${movs} × ${attempts} intentos c/u${restStr ? ` / ${restStr}` : ''}`;
-    }
-    case 'free': {
-      if (block.target) return `Objetivo: ${block.target}`;
-      return 'Registro libre sin temporizador';
-    }
-    default:
-      return '';
+  // 1. Si tiene bloques / búlder
+  if (block.problems && block.problems > 0) {
+    const movs = block.movements ? ` de ${block.movements} movs` : '';
+    const atts = block.attempts && block.attempts > 1 ? ` × ${block.attempts} intentos c/u` : '';
+    const setsPrefix = sets > 1 ? `${sets} series × ` : '';
+    parts.push(`${setsPrefix}${block.problems} ${block.problems === 1 ? 'bloque' : 'bloques'}${movs}${atts}`);
   }
+  // 2. Si tiene tiempo de trabajo directo (ej. suspensiones 10s, ARC 15 min, ULAC 3 min)
+  else if (block.workDurationSeconds && block.workDurationSeconds > 0) {
+    const work = formatSecondsToTime(block.workDurationSeconds);
+    parts.push(`${sets} ${sets === 1 ? 'serie' : 'series'} × ${work}`);
+  }
+  // 3. Si tiene repeticiones (ej. dominadas 5 reps)
+  else if (block.repetitions && block.repetitions > 0) {
+    parts.push(`${sets} ${sets === 1 ? 'serie' : 'series'} × ${block.repetitions} reps`);
+  }
+  // 4. Si solo tiene intentos
+  else if (block.attempts && block.attempts > 0) {
+    const setsPrefix = sets > 1 ? `${sets} series × ` : '';
+    parts.push(`${setsPrefix}${block.attempts} ${block.attempts === 1 ? 'intento' : 'intentos'}`);
+  }
+  // 5. Si solo tiene series
+  else if (block.sets && block.sets > 1) {
+    parts.push(`${block.sets} series`);
+  }
+  // 6. Por defecto o libre
+  else if (block.target) {
+    parts.push(`Objetivo: ${block.target}`);
+  } else {
+    parts.push('Ejercicio libre');
+  }
+
+  if (restStr) {
+    parts.push(restStr);
+  }
+
+  return parts.join(' / ');
 }
