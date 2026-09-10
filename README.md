@@ -13,6 +13,15 @@ CRUX **no impone un catálogo cerrado de ejercicios**. Puedes crear cualquier bl
 - **Intentos:** Número de intentos libres + Descanso entre pegues.
 - **Registro libre:** Título, objetivo e indicaciones sin temporizador forzado.
 
+## 🌐 Despliegue en Vercel
+
+1. Importa el repositorio `rrn77/crux` en [Vercel](https://vercel.com).
+2. En **Project Settings > Environment Variables**, agrega:
+   - `NEXT_PUBLIC_SUPABASE_URL`: Tu URL de proyecto Supabase.
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Tu clave anon/publishable de Supabase.
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Tu clave anon/publishable de Supabase.
+3. Cada push a la rama `main` despliega automáticamente una nueva versión de producción.
+
 ---
 
 ## 🚀 Tecnologías
