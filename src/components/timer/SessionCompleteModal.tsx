@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import { Trophy, Clock, Flame, CheckCircle, Star } from 'lucide-react';
 import { WorkoutSession } from '@/lib/types';
-import { formatDurationHuman, formatSecondsToTime } from '@/lib/timer/durationHelper';
+import { formatDurationHuman, formatSecondsToTime, RPE_LEVELS } from '@/lib/timer/durationHelper';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 
@@ -15,19 +15,6 @@ interface SessionCompleteModalProps {
   onSave: (overallRpe: number, notes?: string) => void;
   onCancel: () => void;
 }
-
-const RPE_LEVELS = [
-  { value: 1, label: '1 - Muy suave', desc: 'Regenerativo, sin fatiga' },
-  { value: 2, label: '2 - Suave', desc: 'Calentamiento prolongado' },
-  { value: 3, label: '3 - Moderado', desc: 'Ritmo cómodo y fluido' },
-  { value: 4, label: '4 - Algo duro', desc: 'Respiración algo acelerada' },
-  { value: 5, label: '5 - Duro', desc: 'Empieza la congestión en brazos' },
-  { value: 6, label: '6 - Notorio', desc: 'Pumping claro en antebrazo' },
-  { value: 7, label: '7 - Intenso', desc: 'Esfuerzo alto, descansos necesarios' },
-  { value: 8, label: '8 - Muy duro', desc: 'Umbral láctico, alta concentración' },
-  { value: 9, label: '9 - Casi al límite', desc: 'A 1 movimiento del fallo total' },
-  { value: 10, label: '10 - Fallo máximo', desc: 'No podrías dar ni 1 pegue más' },
-];
 
 export function SessionCompleteModal({
   isOpen,

@@ -28,16 +28,18 @@ import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { useTestStore, calculateTestDelta, calculateTestFatigue } from '@/lib/store/testStore';
 import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
+import { buildRetroCompletedSession } from '@/lib/workout/retroComplete';
 import { WorkoutSession, TestRecord } from '@/lib/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { CompleteSessionRetroModal } from '@/components/workout/CompleteSessionRetroModal';
 
 const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 export default function HistoryPage() {
   const router = useRouter();
-  const { sessions, deleteSession } = useWorkoutStore();
+  const { sessions, deleteSession, saveSession } = useWorkoutStore();
   const { tests, getPreviousTest } = useTestStore();
   const { startWorkout } = useActiveWorkoutStore();
 
@@ -53,6 +55,15 @@ export default function HistoryPage() {
   // Estado para modal de confirmación de eliminación de sesión
   const [deletingSession, setDeletingSession] = useState<{ id: string; title: string } | null>(null);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
+
+  // Estado para modal de completado retroactivo de sesión
+  const [completingSession, setCompletingSession] = useState<WorkoutSession | null>(null);
+
+  const handleRetroComplete = async (data: { completions: Record<string, number>; overallRpe: number; notes?: string }) => {
+    if (!completingSession) return;
+    await saveSession(buildRetroCompletedSession(completingSession, data.completions, data.overallRpe, data.notes));
+    setCompletingSession(null);
+  };
 
   const handleConfirmDeleteSession = async () => {
     if (!deletingSession) return;
@@ -608,6 +619,15 @@ export default function HistoryPage() {
                               </Button>
                             </Link>
                             <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setCompletingSession(session)}
+                              title="Marcar como completada sin usar el temporizador"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-moss" />
+                              Marcar Hecha
+                            </Button>
+                            <Button
                               variant="primary"
                               size="sm"
                               onClick={() => handleStartScheduledSession(session)}
@@ -821,6 +841,14 @@ export default function HistoryPage() {
         cancelText="Cancelar"
         variant="danger"
         isLoading={isDeletingSession}
+      />
+
+      {/* Modal de Completado Retroactivo de Sesión */}
+      <CompleteSessionRetroModal
+        isOpen={Boolean(completingSession)}
+        session={completingSession}
+        onSave={handleRetroComplete}
+        onCancel={() => setCompletingSession(null)}
       />
     </div>
   );

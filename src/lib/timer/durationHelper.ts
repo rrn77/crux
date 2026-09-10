@@ -46,6 +46,23 @@ export const BLOCK_TYPE_CONFIG: Record<BlockType, BlockTypeConfigEntry> = {
 };
 
 /**
+ * Escala de esfuerzo percibido (RPE 1-10), compartida entre el modal de finalización
+ * en vivo y el de completado retroactivo de sesiones pasadas.
+ */
+export const RPE_LEVELS = [
+  { value: 1, label: '1 - Muy suave', desc: 'Regenerativo, sin fatiga' },
+  { value: 2, label: '2 - Suave', desc: 'Calentamiento prolongado' },
+  { value: 3, label: '3 - Moderado', desc: 'Ritmo cómodo y fluido' },
+  { value: 4, label: '4 - Algo duro', desc: 'Respiración algo acelerada' },
+  { value: 5, label: '5 - Duro', desc: 'Empieza la congestión en brazos' },
+  { value: 6, label: '6 - Notorio', desc: 'Pumping claro en antebrazo' },
+  { value: 7, label: '7 - Intenso', desc: 'Esfuerzo alto, descansos necesarios' },
+  { value: 8, label: '8 - Muy duro', desc: 'Umbral láctico, alta concentración' },
+  { value: 9, label: '9 - Casi al límite', desc: 'A 1 movimiento del fallo total' },
+  { value: 10, label: '10 - Fallo máximo', desc: 'No podrías dar ni 1 pegue más' },
+];
+
+/**
  * Calcula la duración estimada en segundos de un bloque/ejercicio individual
  */
 export function calculateBlockEstimatedDuration(block: WorkoutBlock): number {
