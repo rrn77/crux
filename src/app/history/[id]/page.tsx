@@ -9,6 +9,7 @@ import {
   Calendar,
   Trophy,
   Play,
+  Copy,
   Trash2,
   Layers,
   CheckCircle2,
@@ -129,16 +130,24 @@ export default function HistoryDetailPage() {
           </div>
         )}
 
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          onClick={handleRepeatSession}
-          className="font-bold"
-        >
-          <Play className="w-4 h-4 mr-2 fill-current" />
-          Repetir Esta Sesión
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2.5">
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            onClick={handleRepeatSession}
+            className="font-bold flex-1"
+          >
+            <Play className="w-4 h-4 mr-2 fill-current" />
+            Repetir Ahora
+          </Button>
+          <Link href={`/workouts/new?copyFrom=${sessionId}`} className="flex-1">
+            <Button variant="outline" size="lg" fullWidth className="font-bold">
+              <Copy className="w-4 h-4 mr-2" />
+              Copiar a Otro Día
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Desglose por Bloques Ejecutados */}

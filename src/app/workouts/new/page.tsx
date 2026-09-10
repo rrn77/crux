@@ -14,7 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { WorkoutBlock } from '@/lib/types';
-import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
+import { useWorkoutStore, getLocalDateIsoString, generateUUID } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { calculateTotalEstimatedDuration, formatDurationHuman } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
@@ -27,6 +27,7 @@ function WorkoutBuilderContent() {
   const searchParams = useSearchParams();
   const dateParam = searchParams.get('date');
   const sessionIdParam = searchParams.get('sessionId');
+  const copyFromParam = searchParams.get('copyFrom');
 
   const { scheduleSession, getSessionById } = useWorkoutStore();
   const { startWorkout } = useActiveWorkoutStore();
@@ -55,8 +56,21 @@ function WorkoutBuilderContent() {
         }
         setBlocks(existingSession.blocks || []);
       }
+      return;
     }
-  }, [sessionIdParam, getSessionById]);
+
+    // Copiar los ejercicios de otra sesión (?copyFrom=xxx) como punto de partida para un día nuevo
+    if (copyFromParam) {
+      const sourceSession = getSessionById(copyFromParam);
+      if (sourceSession) {
+        setSessionTitle(sourceSession.title);
+        setSessionDescription(sourceSession.notes || '');
+        setBlocks(
+          (sourceSession.blocks || []).map((b, idx) => ({ ...b, id: generateUUID(), position: idx }))
+        );
+      }
+    }
+  }, [sessionIdParam, copyFromParam, getSessionById]);
 
   // Duración estimada calculada en tiempo real
   const totalEstimatedSec = calculateTotalEstimatedDuration(blocks);
@@ -185,7 +199,9 @@ function WorkoutBuilderContent() {
           {sessionIdParam ? 'Editar Sesión Planificada' : 'Planificar Sesión de Entrenamiento'}
         </h1>
         <p className="text-xs text-graphite-500 mt-0.5">
-          Organiza los ejercicios de tu sesión para el día seleccionado
+          {copyFromParam
+            ? 'Ejercicios copiados de otra sesión: ajusta lo que necesites y elige el día'
+            : 'Organiza los ejercicios de tu sesión para el día seleccionado'}
         </p>
       </div>
 

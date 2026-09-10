@@ -23,6 +23,7 @@ import {
   Minus,
   Sparkles,
   Trash2,
+  Copy,
 } from 'lucide-react';
 import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
@@ -603,6 +604,13 @@ export default function HistoryPage() {
                           <Trash2 className="w-4 h-4" />
                         </button>
 
+                        <Link href={`/workouts/new?copyFrom=${session.id}&date=${todayIso}`}>
+                          <Button variant="outline" size="sm" title="Copiar los ejercicios a otro día">
+                            <Copy className="w-3.5 h-3.5 mr-1" />
+                            Copiar
+                          </Button>
+                        </Link>
+
                         {session.status === 'completed' ? (
                           <Link href={`/history/${session.id}`}>
                             <Button variant="outline" size="sm">
@@ -796,6 +804,16 @@ export default function HistoryPage() {
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
+
+                      <Link
+                        href={`/workouts/new?copyFrom=${session.id}&date=${todayIso}`}
+                        onClick={(e) => e.stopPropagation()}
+                        title="Copiar los ejercicios a otro día"
+                        aria-label="Copiar sesión"
+                        className="text-graphite-400 hover:text-terracotta p-2 rounded-xl hover:bg-terracotta-50 dark:hover:bg-terracotta-950/30 transition-colors flex items-center justify-center"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Link>
 
                       <Link href={`/history/${session.id}`}>
                         <div className="p-1 rounded-lg text-graphite-400 group-hover:text-terracotta group-hover:translate-x-0.5 transition-all">
