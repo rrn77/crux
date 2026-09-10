@@ -11,69 +11,23 @@ import {
   Trash2,
   Edit2,
   ArrowLeft,
-  Layers,
   CalendarPlus,
-  Sparkles,
 } from 'lucide-react';
 import { useWorkoutStore } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { syncService } from '@/lib/supabase/syncService';
-import { formatDurationHuman, formatBlockSummary, calculateTotalEstimatedDuration } from '@/lib/timer/durationHelper';
-import { WorkoutBlock, WorkoutTemplate } from '@/lib/types';
+import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
+import { WorkoutTemplate } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { BlockFormModal } from '@/components/workout/BlockFormModal';
 
 export default function TemplatesPage() {
   const router = useRouter();
-  const { templates, addTemplate, updateTemplate, deleteTemplate } = useWorkoutStore();
+  const { templates, deleteTemplate } = useWorkoutStore();
   const { startWorkout } = useActiveWorkoutStore();
 
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<WorkoutTemplate | null>(null);
   const [deletingTemplate, setDeletingTemplate] = useState<{ id: string; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  const handleCreateNewTemplate = () => {
-    setEditingTemplate(null);
-    setIsFormModalOpen(true);
-  };
-
-  const handleEditTemplate = (tpl: WorkoutTemplate) => {
-    setEditingTemplate(tpl);
-    setIsFormModalOpen(true);
-  };
-
-  const handleSaveExerciseTemplate = (block: WorkoutBlock) => {
-    const estimatedSec = calculateTotalEstimatedDuration([block]);
-
-    if (editingTemplate) {
-      updateTemplate(editingTemplate.id, {
-        title: block.title,
-        description: block.notes || block.target || undefined,
-        estimatedDurationSeconds: estimatedSec,
-        blocks: [{ ...block, position: 0 }],
-      });
-      syncService.pushTemplate(
-        {
-          ...editingTemplate,
-          title: block.title,
-          description: block.notes || block.target || undefined,
-          estimatedDurationSeconds: estimatedSec,
-          blocks: [{ ...block, position: 0 }],
-        },
-        editingTemplate.userId || 'local'
-      );
-    } else {
-      const newTpl = addTemplate({
-        title: block.title,
-        description: block.notes || block.target || undefined,
-        estimatedDurationSeconds: estimatedSec,
-        blocks: [{ ...block, position: 0 }],
-      });
-      syncService.pushTemplate(newTpl, newTpl.userId || 'local');
-    }
-  };
 
   const handleStartTemplate = (template: WorkoutTemplate) => {
     startWorkout(template.title, template.blocks, template.id);
@@ -119,10 +73,12 @@ export default function TemplatesPage() {
           </p>
         </div>
 
-        <Button variant="primary" size="sm" onClick={handleCreateNewTemplate}>
-          <Plus className="w-4 h-4 mr-1 stroke-[2.5]" />
-          Nueva Plantilla de Ejercicio
-        </Button>
+        <Link href="/workouts/templates/new">
+          <Button variant="primary" size="sm">
+            <Plus className="w-4 h-4 mr-1 stroke-[2.5]" />
+            Nueva Plantilla de Ejercicio
+          </Button>
+        </Link>
       </div>
 
       {/* Lista de Plantillas de Ejercicios */}
@@ -191,14 +147,12 @@ export default function TemplatesPage() {
                   </button>
 
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleEditTemplate(tpl)}
-                    >
-                      <Edit2 className="w-3.5 h-3.5 mr-1" />
-                      Editar
-                    </Button>
+                    <Link href={`/workouts/templates/new?id=${tpl.id}`}>
+                      <Button variant="outline" size="sm">
+                        <Edit2 className="w-3.5 h-3.5 mr-1" />
+                        Editar
+                      </Button>
+                    </Link>
 
                     <Link href={`/workouts/new?templateId=${tpl.id}`}>
                       <Button variant="outline" size="sm" title="Usar para planificar una sesión">
@@ -234,20 +188,14 @@ export default function TemplatesPage() {
               Crea tus ejercicios personalizados (ej. Suspensiones 7/3, Dominadas con lastre, ULAC o Bloques en plafón). Podrás utilizarlos en cualquier momento para planificar tus sesiones de la semana.
             </p>
           </div>
-          <Button variant="primary" size="md" onClick={handleCreateNewTemplate}>
-            <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />
-            Crear Mi Primer Ejercicio
-          </Button>
+          <Link href="/workouts/templates/new">
+            <Button variant="primary" size="md">
+              <Plus className="w-4 h-4 mr-1.5 stroke-[2.5]" />
+              Crear Mi Primer Ejercicio
+            </Button>
+          </Link>
         </div>
       )}
-
-      {/* Modal para Crear / Editar Plantilla de Ejercicio */}
-      <BlockFormModal
-        isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
-        onSave={handleSaveExerciseTemplate}
-        initialBlock={editingTemplate?.blocks[0] || null}
-      />
 
       <ConfirmModal
         isOpen={Boolean(deletingTemplate)}

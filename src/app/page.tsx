@@ -28,7 +28,6 @@ import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHel
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
-import { TemplatePickerModal } from '@/components/workout/TemplatePickerModal';
 import { syncService } from '@/lib/supabase/syncService';
 import { WorkoutTemplate, WorkoutSession } from '@/lib/types';
 
@@ -38,7 +37,6 @@ export default function HomePage() {
   const { startWorkout } = useActiveWorkoutStore();
   const { tests } = useTestStore();
 
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [deletingSession, setDeletingSession] = useState<{ id: string; title: string } | null>(null);
   const [isDeletingSession, setIsDeletingSession] = useState(false);
@@ -326,14 +324,12 @@ export default function HomePage() {
               </Button>
             </Link>
 
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => setIsTemplateModalOpen(true)}
-            >
-              <BookOpen className="w-4 h-4 mr-1.5 text-moss" />
-              Cargar desde Plantilla
-            </Button>
+            <Link href="/workouts/templates">
+              <Button variant="outline" size="md">
+                <BookOpen className="w-4 h-4 mr-1.5 text-moss" />
+                Tus Plantillas de Ejercicios
+              </Button>
+            </Link>
           </div>
         </div>
       )}
@@ -598,13 +594,6 @@ export default function HomePage() {
           </div>
         </div>
       )}
-
-      {/* Modal selector de plantilla */}
-      <TemplatePickerModal
-        isOpen={isTemplateModalOpen}
-        onClose={() => setIsTemplateModalOpen(false)}
-        onSelectTemplate={handleStartTemplate}
-      />
 
       {/* Modal de Confirmación para Eliminar Sesión */}
       <ConfirmModal

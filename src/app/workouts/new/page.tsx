@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import {
   Play,
   Plus,
@@ -13,19 +14,20 @@ import {
   Sparkles,
   Calendar,
   CalendarCheck,
-  Trash2,
+  ChevronDown,
+  ChevronUp,
+  X,
 } from 'lucide-react';
 import { WorkoutBlock, WorkoutTemplate } from '@/lib/types';
 import { useWorkoutStore, getLocalDateIsoString, generateUUID } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { syncService } from '@/lib/supabase/syncService';
 import { useAuthStore } from '@/lib/supabase/authStore';
-import { calculateTotalEstimatedDuration, formatDurationHuman } from '@/lib/timer/durationHelper';
+import { calculateTotalEstimatedDuration, formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { BlockCard } from '@/components/workout/BlockCard';
-import { BlockFormModal } from '@/components/workout/BlockFormModal';
-import { TemplatePickerModal } from '@/components/workout/TemplatePickerModal';
+import { BlockFormInline } from '@/components/workout/BlockFormInline';
 
 function WorkoutBuilderContent() {
   const router = useRouter();
@@ -34,7 +36,7 @@ function WorkoutBuilderContent() {
   const dateParam = searchParams.get('date');
   const sessionIdParam = searchParams.get('sessionId');
 
-  const { addTemplate, getTemplateById, scheduleSession, getSessionById } = useWorkoutStore();
+  const { templates, getTemplateById, scheduleSession, getSessionById } = useWorkoutStore();
   const { startWorkout } = useActiveWorkoutStore();
 
   const [scheduledDate, setScheduledDate] = useState<string>(
@@ -44,9 +46,10 @@ function WorkoutBuilderContent() {
   const [sessionDescription, setSessionDescription] = useState<string>('');
   const [blocks, setBlocks] = useState<WorkoutBlock[]>([]);
 
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  // Estados para formularios inline (sin ventanas emergentes / modales)
+  const [isInlineFormOpen, setIsInlineFormOpen] = useState(false);
   const [editingBlock, setEditingBlock] = useState<WorkoutBlock | null>(null);
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isTemplatePanelOpen, setIsTemplatePanelOpen] = useState(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
   // Cargar sesión existente si viene en la query URL (?sessionId=xxx)
@@ -84,14 +87,21 @@ function WorkoutBuilderContent() {
   // Duración estimada calculada en tiempo real
   const totalEstimatedSec = calculateTotalEstimatedDuration(blocks);
 
-  const handleAddBlock = () => {
+  const handleStartAddingBlock = () => {
     setEditingBlock(null);
-    setIsFormModalOpen(true);
+    setIsInlineFormOpen(true);
+    setIsTemplatePanelOpen(false);
   };
 
   const handleEditBlock = (block: WorkoutBlock) => {
     setEditingBlock(block);
-    setIsFormModalOpen(true);
+    setIsInlineFormOpen(true);
+    setIsTemplatePanelOpen(false);
+  };
+
+  const handleCancelInlineForm = () => {
+    setIsInlineFormOpen(false);
+    setEditingBlock(null);
   };
 
   const handleDeleteBlock = (blockId: string) => {
@@ -99,6 +109,10 @@ function WorkoutBuilderContent() {
       const filtered = prev.filter((b) => b.id !== blockId);
       return filtered.map((b, idx) => ({ ...b, position: idx }));
     });
+    if (editingBlock?.id === blockId) {
+      setIsInlineFormOpen(false);
+      setEditingBlock(null);
+    }
   };
 
   const handleMoveUp = (index: number) => {
@@ -131,24 +145,21 @@ function WorkoutBuilderContent() {
     } else {
       setBlocks((prev) => [...prev, { ...savedBlock, position: prev.length }]);
     }
+    setIsInlineFormOpen(false);
+    setEditingBlock(null);
   };
 
-  const handleSelectTemplate = (template: WorkoutTemplate, startImmediately?: boolean) => {
-    if (startImmediately) {
-      startWorkout(template.title, template.blocks, template.id, undefined, scheduledDate);
-      router.push('/workout/active');
-    } else {
-      // Añadir los bloques de la plantilla a la sesión actual
-      const newBlocks: WorkoutBlock[] = template.blocks.map((b, idx) => ({
-        ...b,
-        id: generateUUID(),
-        position: blocks.length + idx,
-      }));
-      setBlocks((prev) => [...prev, ...newBlocks]);
-      if (blocks.length === 0) {
-        setSessionTitle(template.title);
-      }
+  const handleAddTemplateToSession = (template: WorkoutTemplate) => {
+    const newBlocks: WorkoutBlock[] = template.blocks.map((b, idx) => ({
+      ...b,
+      id: generateUUID(),
+      position: blocks.length + idx,
+    }));
+    setBlocks((prev) => [...prev, ...newBlocks]);
+    if (blocks.length === 0) {
+      setSessionTitle(template.title);
     }
+    setIsTemplatePanelOpen(false);
   };
 
   const handleScheduleSession = async () => {
@@ -214,11 +225,15 @@ function WorkoutBuilderContent() {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setIsTemplateModalOpen(true)}
+          onClick={() => {
+            setIsTemplatePanelOpen(!isTemplatePanelOpen);
+            setIsInlineFormOpen(false);
+          }}
           className="text-xs font-bold"
         >
           <BookOpen className="w-3.5 h-3.5 mr-1 text-moss" />
-          Añadir desde Plantillas
+          {isTemplatePanelOpen ? 'Cerrar Plantillas' : 'Añadir desde Plantillas'}
+          {isTemplatePanelOpen ? <ChevronUp className="w-3.5 h-3.5 ml-1" /> : <ChevronDown className="w-3.5 h-3.5 ml-1" />}
         </Button>
       </div>
 
@@ -277,6 +292,69 @@ function WorkoutBuilderContent() {
         </div>
       </div>
 
+      {/* Panel Integrado (Inline) de Selección de Plantillas */}
+      {isTemplatePanelOpen && (
+        <div className="p-5 bg-moss-50/70 dark:bg-moss-950/30 rounded-3xl border border-moss-200 dark:border-moss-900/50 space-y-3.5 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-moss" />
+              <h3 className="font-bold text-sm text-graphite-900 dark:text-white">
+                Tus Plantillas de Ejercicios ({templates.length})
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsTemplatePanelOpen(false)}
+              className="p-1.5 rounded-xl text-graphite-400 hover:text-graphite-700 hover:bg-white dark:hover:bg-graphite-800 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {templates.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-72 overflow-y-auto pr-1">
+              {templates.map((tpl) => (
+                <div
+                  key={tpl.id}
+                  className="p-3.5 rounded-2xl bg-white dark:bg-graphite-900 border border-moss-200 dark:border-graphite-800 flex items-center justify-between gap-2 shadow-2xs"
+                >
+                  <div className="min-w-0">
+                    <div className="font-bold text-xs text-graphite-900 dark:text-graphite-100 truncate">
+                      {tpl.title}
+                    </div>
+                    <div className="text-[11px] font-mono text-graphite-500">
+                      {formatDurationHuman(tpl.estimatedDurationSeconds)} &bull; {tpl.blocks[0] ? formatBlockSummary(tpl.blocks[0]) : '1 bloque'}
+                    </div>
+                  </div>
+
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleAddTemplateToSession(tpl)}
+                    className="shrink-0 text-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Añadir
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 text-center bg-white dark:bg-graphite-900 rounded-2xl border border-moss-200 dark:border-graphite-800 space-y-2">
+              <p className="text-xs text-graphite-500">
+                No tienes plantillas guardadas aún.
+              </p>
+              <Link href="/workouts/templates/new">
+                <Button variant="outline" size="sm">
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Crear Plantilla
+                </Button>
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Lista de Bloques / Ejercicios de la Sesión */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -294,12 +372,19 @@ function WorkoutBuilderContent() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsTemplateModalOpen(true)}
+              onClick={() => {
+                setIsTemplatePanelOpen(!isTemplatePanelOpen);
+                setIsInlineFormOpen(false);
+              }}
             >
               <BookOpen className="w-4 h-4 mr-1 text-moss" />
               Plantillas
             </Button>
-            <Button variant="primary" size="sm" onClick={handleAddBlock}>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleStartAddingBlock}
+            >
               <Plus className="w-4 h-4 mr-1 stroke-[2.5]" />
               Crear Bloque
             </Button>
@@ -310,6 +395,32 @@ function WorkoutBuilderContent() {
           <div className="p-3 bg-moss-100 dark:bg-moss-900/40 text-moss-900 dark:text-moss-200 text-xs font-bold rounded-xl flex items-center gap-2 animate-scale-up">
             <Sparkles className="w-4 h-4 text-moss" />
             {saveSuccessMessage}
+          </div>
+        )}
+
+        {/* Formulario Integrado (Inline) para Crear / Editar Bloque */}
+        {isInlineFormOpen && (
+          <div className="p-5 bg-white dark:bg-graphite-900 rounded-3xl border-2 border-terracotta/60 dark:border-terracotta/50 shadow-md space-y-3 animate-fade-in">
+            <div className="flex items-center justify-between border-b border-chalk-200 dark:border-graphite-800 pb-2.5">
+              <h3 className="font-bold text-sm text-graphite-900 dark:text-white flex items-center gap-2">
+                <Layers className="w-4 h-4 text-terracotta" />
+                {editingBlock ? 'Editando Ejercicio / Bloque' : 'Nuevo Ejercicio / Bloque para esta Sesión'}
+              </h3>
+              <button
+                type="button"
+                onClick={handleCancelInlineForm}
+                className="p-1 rounded-lg text-graphite-400 hover:text-graphite-700 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <BlockFormInline
+              initialBlock={editingBlock}
+              onSave={handleSaveBlock}
+              onCancel={handleCancelInlineForm}
+              submitLabel={editingBlock ? 'Actualizar Bloque' : 'Añadir a la Sesión'}
+            />
           </div>
         )}
 
@@ -329,25 +440,27 @@ function WorkoutBuilderContent() {
             ))}
           </div>
         ) : (
-          <div className="p-10 text-center bg-white dark:bg-graphite-900 rounded-3xl border-2 border-dashed border-chalk-300 dark:border-graphite-800 space-y-3">
-            <p className="text-xs text-graphite-500">
-              No has añadido ningún ejercicio para este día.
-            </p>
-            <div className="flex items-center justify-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsTemplateModalOpen(true)}
-              >
-                <BookOpen className="w-4 h-4 mr-1.5 text-moss" />
-                Añadir desde Plantillas
-              </Button>
-              <Button variant="primary" size="sm" onClick={handleAddBlock}>
-                <Plus className="w-4 h-4 mr-1.5" />
-                Crear Nuevo Bloque
-              </Button>
+          !isInlineFormOpen && (
+            <div className="p-10 text-center bg-white dark:bg-graphite-900 rounded-3xl border-2 border-dashed border-chalk-300 dark:border-graphite-800 space-y-3">
+              <p className="text-xs text-graphite-500">
+                No has añadido ningún ejercicio para este día.
+              </p>
+              <div className="flex items-center justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsTemplatePanelOpen(true)}
+                >
+                  <BookOpen className="w-4 h-4 mr-1.5 text-moss" />
+                  Añadir desde Plantillas
+                </Button>
+                <Button variant="primary" size="sm" onClick={handleStartAddingBlock}>
+                  <Plus className="w-4 h-4 mr-1.5" />
+                  Crear Nuevo Bloque
+                </Button>
+              </div>
             </div>
-          </div>
+          )
         )}
       </div>
 
@@ -375,21 +488,6 @@ function WorkoutBuilderContent() {
           Guardar y Entrenar Ya
         </Button>
       </div>
-
-      {/* Modal para Crear / Editar Bloque */}
-      <BlockFormModal
-        isOpen={isFormModalOpen}
-        onClose={() => setIsFormModalOpen(false)}
-        onSave={handleSaveBlock}
-        initialBlock={editingBlock}
-      />
-
-      {/* Modal para Seleccionar Plantilla Existente */}
-      <TemplatePickerModal
-        isOpen={isTemplateModalOpen}
-        onClose={() => setIsTemplateModalOpen(false)}
-        onSelectTemplate={handleSelectTemplate}
-      />
     </div>
   );
 }
