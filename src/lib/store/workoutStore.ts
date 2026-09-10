@@ -5,6 +5,8 @@ import { WorkoutTemplate, WorkoutSession } from '../types';
 interface WorkoutStore {
   templates: WorkoutTemplate[];
   sessions: WorkoutSession[];
+  deletedSessionIds: string[];
+  deletedTemplateIds: string[];
   
   // Plantillas de ejercicios
   addTemplate: (template: Omit<WorkoutTemplate, 'id' | 'createdAt' | 'updatedAt'>) => WorkoutTemplate;
@@ -48,6 +50,8 @@ export const useWorkoutStore = create<WorkoutStore>()(
     (set, get) => ({
       templates: [],
       sessions: [],
+      deletedSessionIds: [],
+      deletedTemplateIds: [],
 
       addTemplate: (templateData) => {
         const id = generateUUID();
@@ -61,6 +65,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
 
         set((state) => ({
           templates: [newTemplate, ...state.templates],
+          deletedTemplateIds: (state.deletedTemplateIds || []).filter((delId) => delId !== id),
         }));
 
         return newTemplate;
@@ -79,6 +84,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       deleteTemplate: (id) => {
         set((state) => ({
           templates: state.templates.filter((tpl) => tpl.id !== id),
+          deletedTemplateIds: Array.from(new Set([...(state.deletedTemplateIds || []), id])),
         }));
       },
 
@@ -101,6 +107,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
 
         set((state) => ({
           sessions: [scheduledSession, ...state.sessions.filter((s) => s.id !== id)],
+          deletedSessionIds: (state.deletedSessionIds || []).filter((delId) => delId !== id),
         }));
 
         return scheduledSession;
@@ -118,6 +125,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
 
         set((state) => ({
           sessions: [enrichedSession, ...state.sessions.filter((s) => s.id !== session.id)],
+          deletedSessionIds: (state.deletedSessionIds || []).filter((delId) => delId !== session.id),
         }));
       },
 
@@ -130,6 +138,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       deleteSession: (id) => {
         set((state) => ({
           sessions: state.sessions.filter((s) => s.id !== id),
+          deletedSessionIds: Array.from(new Set([...(state.deletedSessionIds || []), id])),
         }));
       },
 
@@ -162,7 +171,7 @@ export const useWorkoutStore = create<WorkoutStore>()(
       },
 
       clearWorkoutStore: () => {
-        set({ templates: [], sessions: [] });
+        set({ templates: [], sessions: [], deletedSessionIds: [], deletedTemplateIds: [] });
       },
     }),
     {

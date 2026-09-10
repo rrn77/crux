@@ -4,6 +4,7 @@ import { TestRecord } from '../types';
 
 interface TestStore {
   tests: TestRecord[];
+  deletedTestIds: string[];
   addTest: (test: Omit<TestRecord, 'id' | 'createdAt'>) => TestRecord;
   updateTest: (id: string, test: Partial<TestRecord>) => void;
   deleteTest: (id: string) => void;
@@ -28,6 +29,7 @@ export const useTestStore = create<TestStore>()(
   persist(
     (set, get) => ({
       tests: [],
+      deletedTestIds: [],
 
       addTest: (testData) => {
         const id = generateUUID();
@@ -39,6 +41,7 @@ export const useTestStore = create<TestStore>()(
 
         set((state) => ({
           tests: [newTest, ...state.tests],
+          deletedTestIds: (state.deletedTestIds || []).filter((delId) => delId !== id),
         }));
 
         return newTest;
@@ -53,6 +56,7 @@ export const useTestStore = create<TestStore>()(
       deleteTest: (id) => {
         set((state) => ({
           tests: state.tests.filter((t) => t.id !== id),
+          deletedTestIds: Array.from(new Set([...(state.deletedTestIds || []), id])),
         }));
       },
 
@@ -81,7 +85,7 @@ export const useTestStore = create<TestStore>()(
       },
 
       clearTestStore: () => {
-        set({ tests: [] });
+        set({ tests: [], deletedTestIds: [] });
       },
     }),
     {

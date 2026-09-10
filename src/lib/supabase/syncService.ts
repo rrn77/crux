@@ -1,7 +1,43 @@
 import { supabase } from './client';
 import { WorkoutTemplate, WorkoutSession, WorkoutBlock, BlockLog, TestRecord } from '../types';
-import { useWorkoutStore } from '../store/workoutStore';
+import { useWorkoutStore, getLocalDateIsoString } from '../store/workoutStore';
 import { useTestStore } from '../store/testStore';
+import { useActiveWorkoutStore } from '../store/activeWorkoutStore';
+
+function serializeSessionNotes(
+  notes?: string,
+  scheduledDate?: string,
+  status?: string,
+  blocks?: WorkoutBlock[]
+): string | undefined {
+  if (!scheduledDate && (!blocks || blocks.length === 0) && status !== 'scheduled') {
+    return notes;
+  }
+  return `[CRUX_SESSION]:${JSON.stringify({ notes: notes || '', scheduledDate, status, blocks })}`;
+}
+
+function deserializeSessionNotes(rawNotes?: string): {
+  notes?: string;
+  scheduledDate?: string;
+  status?: WorkoutSession['status'];
+  blocks?: WorkoutBlock[];
+} {
+  if (!rawNotes) return {};
+  if (rawNotes.startsWith('[CRUX_SESSION]:')) {
+    try {
+      const parsed = JSON.parse(rawNotes.slice(15));
+      return {
+        notes: parsed.notes || undefined,
+        scheduledDate: parsed.scheduledDate || undefined,
+        status: parsed.status || undefined,
+        blocks: parsed.blocks || undefined,
+      };
+    } catch {
+      return { notes: rawNotes };
+    }
+  }
+  return { notes: rawNotes };
+}
 
 function serializeNotesAndSets(
   notes?: string,
@@ -66,54 +102,71 @@ class SupabaseSyncService {
   async syncTemplates(userId: string) {
     if (!supabase) return;
 
-    // 1. Obtener plantillas remotas (propias y no por defecto)
-    const { data: remoteTemplates, error } = await supabase
-      .from('workout_templates')
-      .select('*, workout_blocks(*)')
-      .eq('user_id', userId);
+    try {
+      const deletedIds = new Set(useWorkoutStore.getState().deletedTemplateIds || []);
 
-    if (error || !remoteTemplates) return;
+      // 1. Obtener plantillas remotas (propias y no por defecto)
+      const { data: remoteTemplates, error } = await supabase
+        .from('workout_templates')
+        .select('*, workout_blocks(*)')
+        .eq('user_id', userId);
 
-    const formattedTemplates: WorkoutTemplate[] = remoteTemplates.map((tpl: Record<string, unknown>) => ({
-      id: tpl.id as string,
-      userId: tpl.user_id as string | undefined,
-      title: tpl.title as string,
-      description: tpl.description as string | undefined,
-      estimatedDurationSeconds: Number(tpl.estimated_duration_seconds) || 0,
-      isDefault: Boolean(tpl.is_default),
-      createdAt: tpl.created_at as string,
-      updatedAt: tpl.updated_at as string,
-      blocks: ((tpl.workout_blocks as Array<Record<string, unknown>>) || []).map((b) => ({
-        id: b.id as string,
-        templateId: b.template_id as string,
-        position: Number(b.position) || 0,
-        title: b.title as string,
-        type: b.type as WorkoutBlock['type'],
-        sets: b.sets ? Number(b.sets) : undefined,
-        workDurationSeconds: b.work_duration_seconds ? Number(b.work_duration_seconds) : undefined,
-        restDurationSeconds: b.rest_duration_seconds ? Number(b.rest_duration_seconds) : undefined,
-        repetitions: b.repetitions ? Number(b.repetitions) : undefined,
-        attempts: b.attempts ? Number(b.attempts) : undefined,
-        problems: b.problems ? Number(b.problems) : undefined,
-        movements: b.movements ? Number(b.movements) : undefined,
-        target: b.target as string | undefined,
-        notes: b.notes as string | undefined,
-      })),
-    }));
+      if (error || !remoteTemplates) return;
 
-    // Fusionar con el store local
-    const localStore = useWorkoutStore.getState();
-    const remoteIds = new Set(formattedTemplates.map((t) => t.id));
-
-    // Subir plantillas locales no sincronizadas
-    for (const localTpl of localStore.templates) {
-      if (!remoteIds.has(localTpl.id)) {
-        await this.pushTemplate(localTpl, userId);
+      // Limpiar en Supabase cualquier plantilla que el usuario haya marcado como eliminada
+      for (const tpl of remoteTemplates) {
+        if (deletedIds.has(tpl.id as string)) {
+          await supabase.from('workout_blocks').delete().eq('template_id', tpl.id);
+          await supabase.from('workout_templates').delete().eq('id', tpl.id);
+        }
       }
-    }
 
-    // Actualizar store local con las plantillas remotas
-    useWorkoutStore.setState({ templates: formattedTemplates });
+      const formattedTemplates: WorkoutTemplate[] = remoteTemplates
+        .filter((tpl) => !deletedIds.has(tpl.id as string))
+        .map((tpl: Record<string, unknown>) => ({
+          id: tpl.id as string,
+          userId: tpl.user_id as string | undefined,
+          title: tpl.title as string,
+          description: tpl.description as string | undefined,
+          estimatedDurationSeconds: Number(tpl.estimated_duration_seconds) || 0,
+          isDefault: Boolean(tpl.is_default),
+          createdAt: tpl.created_at as string,
+          updatedAt: tpl.updated_at as string,
+          blocks: ((tpl.workout_blocks as Array<Record<string, unknown>>) || []).map((b) => ({
+            id: b.id as string,
+            templateId: b.template_id as string,
+            position: Number(b.position) || 0,
+            title: b.title as string,
+            type: b.type as WorkoutBlock['type'],
+            sets: b.sets ? Number(b.sets) : undefined,
+            workDurationSeconds: b.work_duration_seconds ? Number(b.work_duration_seconds) : undefined,
+            restDurationSeconds: b.rest_duration_seconds ? Number(b.rest_duration_seconds) : undefined,
+            repetitions: b.repetitions ? Number(b.repetitions) : undefined,
+            attempts: b.attempts ? Number(b.attempts) : undefined,
+            problems: b.problems ? Number(b.problems) : undefined,
+            movements: b.movements ? Number(b.movements) : undefined,
+            target: b.target as string | undefined,
+            notes: b.notes as string | undefined,
+          })),
+        }));
+
+      // Fusionar con el store local
+      const localStore = useWorkoutStore.getState();
+      const remoteIds = new Set(formattedTemplates.map((t) => t.id));
+
+      // Subir plantillas locales no sincronizadas (que no hayan sido eliminadas)
+      for (const localTpl of localStore.templates) {
+        if (!deletedIds.has(localTpl.id) && !remoteIds.has(localTpl.id)) {
+          await this.pushTemplate(localTpl, userId);
+        }
+      }
+
+      useWorkoutStore.setState({
+        templates: formattedTemplates.filter((t) => !deletedIds.has(t.id)),
+      });
+    } catch (err) {
+      console.warn('Error al sincronizar plantillas con Supabase:', err);
+    }
   }
 
   /**
@@ -121,6 +174,9 @@ class SupabaseSyncService {
    */
   async pushTemplate(template: WorkoutTemplate, userId: string): Promise<string | undefined> {
     if (!supabase) return undefined;
+
+    const deletedIds = new Set(useWorkoutStore.getState().deletedTemplateIds || []);
+    if (deletedIds.has(template.id)) return undefined;
 
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(template.id);
@@ -189,54 +245,85 @@ class SupabaseSyncService {
   async syncSessions(userId: string) {
     if (!supabase) return;
 
-    const { data: remoteSessions, error } = await supabase
-      .from('workout_sessions')
-      .select('*, block_logs(*)')
-      .eq('user_id', userId)
-      .order('started_at', { ascending: false });
+    try {
+      const deletedIds = new Set(useWorkoutStore.getState().deletedSessionIds || []);
 
-    if (error || !remoteSessions) return;
+      const { data: remoteSessions, error } = await supabase
+        .from('workout_sessions')
+        .select('*, block_logs(*)')
+        .eq('user_id', userId)
+        .order('started_at', { ascending: false });
 
-    const formattedSessions: WorkoutSession[] = remoteSessions.map((s: Record<string, unknown>) => ({
-      id: s.id as string,
-      userId: s.user_id as string,
-      templateId: s.template_id as string | undefined,
-      title: s.title as string,
-      startedAt: s.started_at as string,
-      completedAt: s.completed_at as string | undefined,
-      durationSeconds: Number(s.duration_seconds) || 0,
-      overallRpe: s.overall_rpe ? Number(s.overall_rpe) : undefined,
-      status: s.status as WorkoutSession['status'],
-      notes: s.notes as string | undefined,
-      blocks: [],
-      logs: ((s.block_logs as Array<Record<string, unknown>>) || []).map((l) => ({
-        id: l.id as string,
-        sessionId: l.session_id as string,
-        position: Number(l.position) || 0,
-        blockTitle: l.block_title as string,
-        blockType: l.block_type as WorkoutBlock['type'],
-        status: l.status as BlockLog['status'],
-        completedSets: Number(l.completed_sets) || 0,
-        targetSets: Number(l.completed_sets) || 0,
-        actualWorkSeconds: Number(l.actual_work_seconds) || 0,
-        actualRestSeconds: Number(l.actual_rest_seconds) || 0,
-        rpe: l.rpe ? Number(l.rpe) : undefined,
-        notes: l.notes as string | undefined,
-      })),
-    }));
+      if (error || !remoteSessions) return;
 
-    // Fusionar con el store local
-    const localStore = useWorkoutStore.getState();
-    const remoteIds = new Set(formattedSessions.map((s) => s.id));
-
-    // Subir sesiones locales pendientes
-    for (const localSession of localStore.sessions) {
-      if (!remoteIds.has(localSession.id)) {
-        await this.pushSession(localSession, userId);
+      // Limpiar en Supabase cualquier sesión que el usuario haya eliminado
+      for (const s of remoteSessions) {
+        if (deletedIds.has(s.id as string)) {
+          await supabase.from('block_logs').delete().eq('session_id', s.id);
+          await supabase.from('workout_sessions').delete().eq('id', s.id);
+        }
       }
-    }
 
-    useWorkoutStore.setState({ sessions: formattedSessions });
+      const formattedSessions: WorkoutSession[] = remoteSessions
+        .filter((s) => !deletedIds.has(s.id as string))
+        .map((s: Record<string, unknown>) => {
+          const rawNotes = s.notes as string | undefined;
+          const meta = deserializeSessionNotes(rawNotes);
+
+          const scheduledDate =
+            meta.scheduledDate ||
+            (s.started_at ? getLocalDateIsoString(new Date(s.started_at as string)) : undefined);
+
+          const realStatus =
+            meta.status || (s.status as WorkoutSession['status']);
+
+          return {
+            id: s.id as string,
+            userId: s.user_id as string,
+            templateId: s.template_id as string | undefined,
+            title: s.title as string,
+            scheduledDate,
+            startedAt: s.started_at as string,
+            completedAt: s.completed_at as string | undefined,
+            durationSeconds: Number(s.duration_seconds) || 0,
+            overallRpe: s.overall_rpe ? Number(s.overall_rpe) : undefined,
+            status: realStatus,
+            notes: meta.notes,
+            blocks: meta.blocks || [],
+            logs: ((s.block_logs as Array<Record<string, unknown>>) || []).map((l) => ({
+              id: l.id as string,
+              sessionId: l.session_id as string,
+              position: Number(l.position) || 0,
+              blockTitle: l.block_title as string,
+              blockType: l.block_type as WorkoutBlock['type'],
+              status: l.status as BlockLog['status'],
+              completedSets: Number(l.completed_sets) || 0,
+              targetSets: Number(l.completed_sets) || 0,
+              actualWorkSeconds: Number(l.actual_work_seconds) || 0,
+              actualRestSeconds: Number(l.actual_rest_seconds) || 0,
+              rpe: l.rpe ? Number(l.rpe) : undefined,
+              notes: l.notes as string | undefined,
+            })),
+          };
+        });
+
+      // Fusionar con el store local
+      const localStore = useWorkoutStore.getState();
+      const remoteIds = new Set(formattedSessions.map((s) => s.id));
+
+      // Subir sesiones locales pendientes (que no hayan sido eliminadas)
+      for (const localSession of localStore.sessions) {
+        if (!deletedIds.has(localSession.id) && !remoteIds.has(localSession.id)) {
+          await this.pushSession(localSession, userId);
+        }
+      }
+
+      useWorkoutStore.setState({
+        sessions: formattedSessions.filter((s) => !deletedIds.has(s.id)),
+      });
+    } catch (err) {
+      console.warn('Error al sincronizar sesiones con Supabase:', err);
+    }
   }
 
   /**
@@ -245,9 +332,24 @@ class SupabaseSyncService {
   async pushSession(session: WorkoutSession, userId: string): Promise<string | undefined> {
     if (!supabase) return undefined;
 
+    const deletedIds = new Set(useWorkoutStore.getState().deletedSessionIds || []);
+    if (deletedIds.has(session.id)) return undefined;
+
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.id);
-      const isTemplateUuid = session.templateId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.templateId);
+      const isTemplateUuid =
+        session.templateId &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(session.templateId);
+
+      const serializedNotes = serializeSessionNotes(
+        session.notes,
+        session.scheduledDate,
+        session.status,
+        session.blocks
+      );
+
+      // En PostgreSQL, el CHECK constraint solo acepta in_progress, completed, abandoned.
+      const remoteDbStatus = session.status === 'scheduled' ? 'in_progress' : session.status;
 
       const payload: Record<string, unknown> = {
         user_id: userId,
@@ -257,8 +359,8 @@ class SupabaseSyncService {
         completed_at: session.completedAt,
         duration_seconds: session.durationSeconds,
         overall_rpe: session.overallRpe,
-        status: session.status,
-        notes: session.notes,
+        status: remoteDbStatus,
+        notes: serializedNotes,
       };
 
       if (isUuid) {
@@ -314,42 +416,59 @@ class SupabaseSyncService {
   async syncTests(userId: string) {
     if (!supabase) return;
 
-    const { data: remoteTests, error } = await supabase
-      .from('tests')
-      .select('*')
-      .order('tested_at', { ascending: false });
+    try {
+      const deletedIds = new Set(useTestStore.getState().deletedTestIds || []);
 
-    if (error || !remoteTests) return;
+      const { data: remoteTests, error } = await supabase
+        .from('tests')
+        .select('*')
+        .eq('user_id', userId)
+        .order('tested_at', { ascending: false });
 
-    const formattedTests: TestRecord[] = remoteTests.map((t: Record<string, unknown>) => {
-      const { notes, sets, targetMetric } = deserializeNotesAndSets(t.notes as string | undefined);
-      return {
-        id: t.id as string,
-        userId: t.user_id as string,
-        title: t.title as string,
-        protocol: t.protocol as string | undefined,
-        value: Number(t.value),
-        unit: t.unit as string,
-        testedAt: t.tested_at as string,
-        notes,
-        sets,
-        targetMetric,
-        createdAt: t.created_at as string,
-      };
-    });
+      if (error || !remoteTests) return;
 
-    const localStore = useTestStore.getState();
-    const remoteIds = new Set(formattedTests.map((t) => t.id));
-
-    // Subir tests locales pendientes
-    for (const localTest of localStore.tests) {
-      if (!remoteIds.has(localTest.id)) {
-        await this.pushTest(localTest, userId);
+      // Limpiar en Supabase cualquier test eliminado
+      for (const t of remoteTests) {
+        if (deletedIds.has(t.id as string)) {
+          await supabase.from('tests').delete().eq('id', t.id);
+        }
       }
-    }
 
-    // Actualizar store local con las pruebas remotas
-    useTestStore.setState({ tests: formattedTests });
+      const formattedTests: TestRecord[] = remoteTests
+        .filter((t) => !deletedIds.has(t.id as string))
+        .map((t: Record<string, unknown>) => {
+          const { notes, sets, targetMetric } = deserializeNotesAndSets(t.notes as string | undefined);
+          return {
+            id: t.id as string,
+            userId: t.user_id as string,
+            title: t.title as string,
+            protocol: t.protocol as string | undefined,
+            value: Number(t.value),
+            unit: t.unit as string,
+            testedAt: t.tested_at as string,
+            notes,
+            sets,
+            targetMetric,
+            createdAt: t.created_at as string,
+          };
+        });
+
+      const localStore = useTestStore.getState();
+      const remoteIds = new Set(formattedTests.map((t) => t.id));
+
+      // Subir tests locales pendientes
+      for (const localTest of localStore.tests) {
+        if (!deletedIds.has(localTest.id) && !remoteIds.has(localTest.id)) {
+          await this.pushTest(localTest, userId);
+        }
+      }
+
+      useTestStore.setState({
+        tests: formattedTests.filter((t) => !deletedIds.has(t.id)),
+      });
+    } catch (err) {
+      console.warn('Error al sincronizar tests con Supabase:', err);
+    }
   }
 
   /**
@@ -357,6 +476,9 @@ class SupabaseSyncService {
    */
   async pushTest(test: TestRecord, userId: string): Promise<string | undefined> {
     if (!supabase) return undefined;
+
+    const deletedIds = new Set(useTestStore.getState().deletedTestIds || []);
+    if (deletedIds.has(test.id)) return undefined;
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(test.id);
     const serializedNotes = serializeNotesAndSets(test.notes, test.sets, test.targetMetric);
@@ -432,21 +554,22 @@ class SupabaseSyncService {
   }
 
   /**
-   * Eliminar una plantilla de Supabase
+   * Eliminar una plantilla de Supabase y asegurar que no vuelva a sincronizarse
    */
   async deleteTemplate(id: string, title?: string) {
+    useWorkoutStore.getState().deleteTemplate(id);
+
     if (!supabase) return;
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       if (isUuid) {
-        // Eliminar bloques asociados primero
         await supabase.from('workout_blocks').delete().eq('template_id', id);
         const { error } = await supabase.from('workout_templates').delete().eq('id', id);
         if (error) {
           console.warn('Error al borrar plantilla en Supabase:', error);
         }
-      } else if (title) {
-        // Fallback: Si el ID era local no-UUID, buscar y eliminar por título
+      }
+      if (title) {
         const { data } = await supabase.from('workout_templates').select('id').eq('title', title);
         if (data && data.length > 0) {
           for (const item of data) {
@@ -461,21 +584,28 @@ class SupabaseSyncService {
   }
 
   /**
-   * Eliminar una sesión de Supabase
+   * Eliminar una sesión de Supabase y asegurar que no vuelva a sincronizarse
    */
   async deleteSession(id: string, title?: string) {
+    // Si la sesión eliminada está activa en el temporizador, abandonarla
+    const activeSession = useActiveWorkoutStore.getState().session;
+    if (activeSession?.id === id) {
+      useActiveWorkoutStore.getState().abandonSession();
+    }
+
+    useWorkoutStore.getState().deleteSession(id);
+
     if (!supabase) return;
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
       if (isUuid) {
-        // Eliminar logs asociados primero
         await supabase.from('block_logs').delete().eq('session_id', id);
         const { error } = await supabase.from('workout_sessions').delete().eq('id', id);
         if (error) {
           console.warn('Error al borrar sesión en Supabase:', error);
         }
-      } else if (title) {
-        // Fallback: Si el ID era local no-UUID, buscar y eliminar por título
+      }
+      if (title) {
         const { data } = await supabase.from('workout_sessions').select('id').eq('title', title);
         if (data && data.length > 0) {
           for (const item of data) {
@@ -493,6 +623,8 @@ class SupabaseSyncService {
    * Eliminar un test de Supabase
    */
   async deleteTest(id: string) {
+    useTestStore.getState().deleteTest(id);
+
     if (!supabase) return;
     try {
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
