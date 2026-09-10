@@ -3,25 +3,36 @@ import { WorkoutTemplate, WorkoutSession, WorkoutBlock, BlockLog, TestRecord } f
 import { useWorkoutStore } from '../store/workoutStore';
 import { useTestStore } from '../store/testStore';
 
-function serializeNotesAndSets(notes?: string, sets?: import('../types').TestSet[]): string | undefined {
-  if (!sets || sets.length === 0) return notes;
-  return `[SETS]:${JSON.stringify({ notes: notes || '', sets })}`;
+function serializeNotesAndSets(
+  notes?: string,
+  sets?: import('../types').TestSet[],
+  targetMetric?: 'higher_is_better' | 'lower_is_better'
+): string | undefined {
+  if ((!sets || sets.length === 0) && (!targetMetric || targetMetric === 'higher_is_better')) {
+    return notes;
+  }
+  return `[SETS]:${JSON.stringify({ notes: notes || '', sets, targetMetric })}`;
 }
 
-function deserializeNotesAndSets(rawNotes?: string): { notes?: string; sets?: import('../types').TestSet[] } {
-  if (!rawNotes) return { notes: undefined, sets: undefined };
+function deserializeNotesAndSets(rawNotes?: string): {
+  notes?: string;
+  sets?: import('../types').TestSet[];
+  targetMetric?: 'higher_is_better' | 'lower_is_better';
+} {
+  if (!rawNotes) return { notes: undefined, sets: undefined, targetMetric: undefined };
   if (rawNotes.startsWith('[SETS]:')) {
     try {
       const parsed = JSON.parse(rawNotes.slice(7));
       return {
         notes: parsed.notes || undefined,
         sets: parsed.sets && parsed.sets.length > 0 ? parsed.sets : undefined,
+        targetMetric: parsed.targetMetric || undefined,
       };
     } catch {
-      return { notes: rawNotes, sets: undefined };
+      return { notes: rawNotes, sets: undefined, targetMetric: undefined };
     }
   }
-  return { notes: rawNotes, sets: undefined };
+  return { notes: rawNotes, sets: undefined, targetMetric: undefined };
 }
 
 class SupabaseSyncService {
@@ -272,7 +283,7 @@ class SupabaseSyncService {
     if (error || !remoteTests) return;
 
     const formattedTests: TestRecord[] = remoteTests.map((t: Record<string, unknown>) => {
-      const { notes, sets } = deserializeNotesAndSets(t.notes as string | undefined);
+      const { notes, sets, targetMetric } = deserializeNotesAndSets(t.notes as string | undefined);
       return {
         id: t.id as string,
         userId: t.user_id as string,
@@ -283,6 +294,7 @@ class SupabaseSyncService {
         testedAt: t.tested_at as string,
         notes,
         sets,
+        targetMetric,
         createdAt: t.created_at as string,
       };
     });
@@ -308,7 +320,7 @@ class SupabaseSyncService {
     if (!supabase) return undefined;
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(test.id);
-    const serializedNotes = serializeNotesAndSets(test.notes, test.sets);
+    const serializedNotes = serializeNotesAndSets(test.notes, test.sets, test.targetMetric);
 
     try {
       const payload: Record<string, unknown> = {
@@ -355,8 +367,8 @@ class SupabaseSyncService {
     if (!supabase) return;
     try {
       const serializedNotes =
-        testData.sets !== undefined || testData.notes !== undefined
-          ? serializeNotesAndSets(testData.notes, testData.sets)
+        testData.sets !== undefined || testData.notes !== undefined || testData.targetMetric !== undefined
+          ? serializeNotesAndSets(testData.notes, testData.sets, testData.targetMetric)
           : undefined;
 
       const updatePayload: Record<string, unknown> = {

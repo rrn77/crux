@@ -47,6 +47,9 @@ export default function NewTestPage() {
 
   const todayIso = new Date().toISOString().split('T')[0];
 
+  // Estado para dirección del objetivo (Más es mejor vs Menos es mejor)
+  const [targetMetric, setTargetMetric] = useState<'higher_is_better' | 'lower_is_better'>('higher_is_better');
+
   // Estado para gestión dinámica de series
   const [sets, setSets] = useState<FormSetItem[]>([
     { id: 'set-1', value: '', notes: '' },
@@ -76,7 +79,14 @@ export default function NewTestPage() {
   const previousTestsList = useMemo(() => {
     const map = new Map<
       string,
-      { title: string; protocol?: string; unit: string; lastValue: number; lastDate: string }
+      {
+        title: string;
+        protocol?: string;
+        unit: string;
+        lastValue: number;
+        lastDate: string;
+        targetMetric?: 'higher_is_better' | 'lower_is_better';
+      }
     >();
 
     const sorted = [...tests].sort(
@@ -92,6 +102,7 @@ export default function NewTestPage() {
           unit: t.unit,
           lastValue: t.value,
           lastDate: t.testedAt,
+          targetMetric: t.targetMetric,
         });
       }
     });
@@ -99,10 +110,31 @@ export default function NewTestPage() {
     return Array.from(map.values());
   }, [tests]);
 
-  const handleSelectPreviousTest = (item: { title: string; protocol?: string; unit: string }) => {
+  const handleSelectPreviousTest = (item: {
+    title: string;
+    protocol?: string;
+    unit: string;
+    targetMetric?: 'higher_is_better' | 'lower_is_better';
+  }) => {
     setValue('title', item.title, { shouldValidate: true });
     setValue('protocol', item.protocol || '', { shouldValidate: true });
     setValue('unit', item.unit, { shouldValidate: true });
+
+    if (item.targetMetric) {
+      setTargetMetric(item.targetMetric);
+    } else if (item.unit?.toLowerCase() === 'mm' || item.title?.toLowerCase().includes('mm')) {
+      setTargetMetric('lower_is_better');
+    } else {
+      setTargetMetric('higher_is_better');
+    }
+  };
+
+  const handleUnitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setValue('unit', val);
+    if (val.toLowerCase().trim() === 'mm') {
+      setTargetMetric('lower_is_better');
+    }
   };
 
   const handleAddSet = () => {
@@ -143,8 +175,8 @@ export default function NewTestPage() {
 
   const fatigueAnalysis = useMemo(() => {
     if (validTestSets.length <= 1) return null;
-    return calculateTestFatigue(validTestSets);
-  }, [validTestSets]);
+    return calculateTestFatigue(validTestSets, targetMetric);
+  }, [validTestSets, targetMetric]);
 
   const onSubmit = async (data: TestFormData) => {
     if (validTestSets.length === 0) {
@@ -170,7 +202,10 @@ export default function NewTestPage() {
     }
 
     // Valor principal: Mejor marca (pico) de todas las series realizadas
-    const peakValue = Math.max(...validTestSets.map((s) => s.value));
+    const peakValue =
+      targetMetric === 'lower_is_better'
+        ? Math.min(...validTestSets.map((s) => s.value))
+        : Math.max(...validTestSets.map((s) => s.value));
 
     const newTest = addTest({
       title: data.title.trim(),
@@ -180,6 +215,7 @@ export default function NewTestPage() {
       testedAt: testedAtIso,
       notes: data.notes?.trim() || undefined,
       sets: validTestSets.length > 1 ? validTestSets : undefined,
+      targetMetric,
     });
 
     const user = useAuthStore.getState().user;
@@ -255,8 +291,9 @@ export default function NewTestPage() {
         <div className="grid grid-cols-2 gap-3">
           <Input
             label="Unidad de Medida"
-            placeholder="kg, s, rep, grado..."
+            placeholder="kg, s, rep, grado, mm..."
             {...register('unit')}
+            onChange={handleUnitChange}
             error={errors.unit?.message}
           />
 
@@ -266,6 +303,66 @@ export default function NewTestPage() {
             {...register('testedAt')}
             error={errors.testedAt?.message}
           />
+        </div>
+
+        {/* Objetivo de la Métrica */}
+        <div className="space-y-1.5 pt-1">
+          <label className="block text-xs font-bold uppercase tracking-wider text-graphite-700 dark:text-graphite-300">
+            Criterio de Mejora (Objetivo)
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setTargetMetric('higher_is_better')}
+              className={`p-3 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                targetMetric === 'higher_is_better'
+                  ? 'border-terracotta bg-terracotta-50/60 dark:bg-terracotta-950/30 ring-1 ring-terracotta text-graphite-900 dark:text-white'
+                  : 'border-chalk-300 dark:border-graphite-700 bg-chalk-100/60 dark:bg-graphite-800/60 text-graphite-600 dark:text-graphite-400 hover:border-chalk-400'
+              }`}
+            >
+              <div
+                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 text-xs font-black ${
+                  targetMetric === 'higher_is_better'
+                    ? 'bg-terracotta text-white'
+                    : 'bg-chalk-200 dark:bg-graphite-700 text-graphite-600 dark:text-graphite-400'
+                }`}
+              >
+                ↑
+              </div>
+              <div>
+                <div className="text-xs font-bold">Aumentar Marca (Más es mejor)</div>
+                <div className="text-[11px] text-graphite-500 mt-0.5">
+                  Más kg lastre, más reps, más segundos, más grado...
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTargetMetric('lower_is_better')}
+              className={`p-3 rounded-2xl border text-left flex items-start gap-3 transition-all ${
+                targetMetric === 'lower_is_better'
+                  ? 'border-terracotta bg-terracotta-50/60 dark:bg-terracotta-950/30 ring-1 ring-terracotta text-graphite-900 dark:text-white'
+                  : 'border-chalk-300 dark:border-graphite-700 bg-chalk-100/60 dark:bg-graphite-800/60 text-graphite-600 dark:text-graphite-400 hover:border-chalk-400'
+              }`}
+            >
+              <div
+                className={`w-7 h-7 rounded-xl flex items-center justify-center shrink-0 text-xs font-black ${
+                  targetMetric === 'lower_is_better'
+                    ? 'bg-terracotta text-white'
+                    : 'bg-chalk-200 dark:bg-graphite-700 text-graphite-600 dark:text-graphite-400'
+                }`}
+              >
+                ↓
+              </div>
+              <div>
+                <div className="text-xs font-bold">Reducir Marca (Menos es mejor)</div>
+                <div className="text-[11px] text-graphite-500 mt-0.5">
+                  Regleta más pequeña (mm), menor tiempo, menor RPE...
+                </div>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Sección de Series / Intentos para Fatiga Rápida */}
@@ -386,7 +483,7 @@ export default function NewTestPage() {
 
               <div className="bg-white dark:bg-graphite-900 p-2.5 rounded-xl border border-chalk-200 dark:border-graphite-800">
                 <div className="text-xs text-graphite-500 font-semibold">Caída (S1 ➔ S{fatigueAnalysis.totalSets})</div>
-                <div className={`font-mono font-black text-base sm:text-lg ${fatigueAnalysis.totalDropPercentage <= 0 ? 'text-red-500' : 'text-moss'}`}>
+                <div className={`font-mono font-black text-base sm:text-lg ${fatigueAnalysis.isTotalLoss ? 'text-red-500' : 'text-moss'}`}>
                   {fatigueAnalysis.totalDropPercentage > 0 ? '+' : ''}
                   {fatigueAnalysis.totalDropPercentage}%
                 </div>
@@ -419,7 +516,7 @@ export default function NewTestPage() {
                     {idx > 0 && (
                       <span
                         className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                          s.percentageDrop < 0
+                          s.isLoss
                             ? 'bg-red-100 dark:bg-red-950/40 text-red-600'
                             : 'bg-moss-100 dark:bg-moss-950/40 text-moss'
                         }`}

@@ -162,5 +162,58 @@ test('Recuperación con auto-transición tras expiración en background', () => 
   assert.strictEqual(updatedState.phase, 'rest');
 });
 
+import { calculateTestDelta, calculateTestFatigue } from '../lib/store/testStore';
+
+// 4. Tests de Test Delta y Fatiga con Criterio de Mejora (higher_is_better vs lower_is_better)
+test('calculateTestDelta: higher_is_better (más es mejor: kg, reps)', () => {
+  // Aumento de peso (mejora)
+  const delta1 = calculateTestDelta(30, 25, 'kg', 'higher_is_better');
+  assert.strictEqual(delta1?.isImprovement, true);
+  assert.strictEqual(delta1?.isPositive, true);
+  assert.strictEqual(delta1?.deltaValue, 5);
+
+  // Disminución de peso (empeoramiento)
+  const delta2 = calculateTestDelta(20, 25, 'kg', 'higher_is_better');
+  assert.strictEqual(delta2?.isImprovement, false);
+  assert.strictEqual(delta2?.isPositive, false);
+  assert.strictEqual(delta2?.deltaValue, -5);
+});
+
+test('calculateTestDelta: lower_is_better (menos es mejor: mm, tiempo)', () => {
+  // Reducción de regleta de 14mm a 10mm (MEJORA en verde)
+  const delta1 = calculateTestDelta(10, 14, 'mm', 'lower_is_better');
+  assert.strictEqual(delta1?.isImprovement, true, '10mm vs 14mm debe ser MEJORA');
+  assert.strictEqual(delta1?.isPositive, false, '10mm vs 14mm tiene deltaValue negativo (-4)');
+  assert.strictEqual(delta1?.deltaValue, -4);
+
+  // Aumento de regleta de 10mm a 14mm (EMPEORAMIENTO en rojo)
+  const delta2 = calculateTestDelta(14, 10, 'mm', 'lower_is_better');
+  assert.strictEqual(delta2?.isImprovement, false, '14mm vs 10mm debe ser EMPEORAMIENTO');
+  assert.strictEqual(delta2?.isPositive, true, '14mm vs 10mm tiene deltaValue positivo (+4)');
+  assert.strictEqual(delta2?.deltaValue, 4);
+});
+
+test('calculateTestFatigue: peakValue y pérdida según targetMetric', () => {
+  // Suspensiones: 10mm en S1, 12mm en S2, 14mm en S3 (pico = 10mm)
+  const setsSuspensiones = [
+    { setNumber: 1, value: 10 },
+    { setNumber: 2, value: 12 },
+    { setNumber: 3, value: 14 },
+  ];
+  const fatigueSusp = calculateTestFatigue(setsSuspensiones, 'lower_is_better');
+  assert.strictEqual(fatigueSusp?.peakValue, 10, 'El pico en regletas debe ser la menor regleta (10mm)');
+  assert.strictEqual(fatigueSusp?.isTotalLoss, true, 'Pasar de 10mm a 14mm es pérdida de rendimiento por fatiga');
+
+  // Dominada: 30kg en S1, 28kg en S2, 25kg en S3 (pico = 30kg)
+  const setsDominadas = [
+    { setNumber: 1, value: 30 },
+    { setNumber: 2, value: 28 },
+    { setNumber: 3, value: 25 },
+  ];
+  const fatigueDom = calculateTestFatigue(setsDominadas, 'higher_is_better');
+  assert.strictEqual(fatigueDom?.peakValue, 30, 'El pico en dominadas debe ser el mayor lastre (30kg)');
+  assert.strictEqual(fatigueDom?.isTotalLoss, true, 'Pasar de 30kg a 25kg es pérdida de rendimiento por fatiga');
+});
+
 console.log(`\n🎉 Resumen: ${passed} pruebas superadas, ${failed} fallidas.\n`);
 if (failed > 0) process.exit(1);

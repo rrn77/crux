@@ -211,8 +211,19 @@ export default function TestsPage() {
                 {dayGroup.items.map((test, index) => {
                   // Seguimiento por ejercicio: comparar con la prueba ANTERIOR de ese mismo ejercicio
                   const previousTest = getPreviousTest(test.title, test.testedAt);
-                  const delta = calculateTestDelta(test.value, previousTest?.value, test.unit);
-                  const fatigue = calculateTestFatigue(test.sets);
+                  const effectiveTargetMetric =
+                    test.targetMetric ||
+                    (test.unit?.toLowerCase() === 'mm' || test.title?.toLowerCase().includes('mm')
+                      ? 'lower_is_better'
+                      : 'higher_is_better');
+
+                  const delta = calculateTestDelta(
+                    test.value,
+                    previousTest?.value,
+                    test.unit,
+                    effectiveTargetMetric
+                  );
+                  const fatigue = calculateTestFatigue(test.sets, effectiveTargetMetric);
 
                   return (
                     <div
@@ -222,7 +233,7 @@ export default function TestsPage() {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         {/* Información del Ejercicio */}
                         <div className="space-y-1 min-w-0">
-                          <div className="flex items-center gap-2.5 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span
                               className="w-6 h-6 rounded-lg bg-chalk-200 dark:bg-graphite-800 text-graphite-700 dark:text-graphite-300 font-mono font-black text-xs flex items-center justify-center shrink-0 border border-chalk-300/60 dark:border-graphite-700"
                               title={`Ejercicio #${index + 1} del día`}
@@ -232,6 +243,14 @@ export default function TestsPage() {
                             <h3 className="font-bold text-base text-graphite-900 dark:text-graphite-100 truncate">
                               {test.title}
                             </h3>
+                            {effectiveTargetMetric === 'lower_is_better' ? (
+                              <span
+                                className="text-[10px] font-bold bg-chalk-200 dark:bg-graphite-800 text-graphite-600 dark:text-graphite-400 px-2 py-0.5 rounded-md flex items-center gap-0.5 border border-chalk-300/60 dark:border-graphite-700"
+                                title="En este test, reducir el valor es una mejora (ej: regleta más pequeña)"
+                              >
+                                ↓ Menos es mejor
+                              </span>
+                            ) : null}
                             {fatigue && fatigue.totalSets > 1 && (
                               <span className="text-[10px] font-mono font-bold bg-terracotta-100 dark:bg-terracotta-950/40 text-terracotta px-2 py-0.5 rounded-md flex items-center gap-1 border border-terracotta-200 dark:border-terracotta-900/50">
                                 <Zap className="w-3 h-3" />
@@ -267,19 +286,33 @@ export default function TestsPage() {
                             {/* Delta frente al anterior de este mismo ejercicio */}
                             <div className="mt-1">
                               {delta ? (
-                                delta.isPositive ? (
-                                  <span className="text-moss dark:text-moss-400 font-mono font-bold text-[11px] flex items-center gap-0.5 bg-moss-50 dark:bg-moss-900/30 px-2 py-0.5 rounded-md">
-                                    <TrendingUp className="w-3 h-3" />
-                                    {delta.formatted}
-                                  </span>
-                                ) : delta.isNeutral ? (
+                                delta.isNeutral ? (
                                   <span className="text-graphite-500 font-mono font-medium text-[11px] flex items-center gap-0.5 bg-chalk-200 dark:bg-graphite-800 px-2 py-0.5 rounded-md">
                                     <Minus className="w-3 h-3" />
                                     Sin cambio
                                   </span>
+                                ) : delta.isImprovement ? (
+                                  <span
+                                    className="text-moss dark:text-moss-400 font-mono font-bold text-[11px] flex items-center gap-0.5 bg-moss-50 dark:bg-moss-900/30 px-2 py-0.5 rounded-md"
+                                    title="Mejora de rendimiento"
+                                  >
+                                    {delta.isPositive ? (
+                                      <TrendingUp className="w-3 h-3" />
+                                    ) : (
+                                      <TrendingDown className="w-3 h-3" />
+                                    )}
+                                    {delta.formatted}
+                                  </span>
                                 ) : (
-                                  <span className="text-red-500 font-mono font-bold text-[11px] flex items-center gap-0.5 bg-red-50 dark:bg-red-950/30 px-2 py-0.5 rounded-md">
-                                    <TrendingDown className="w-3 h-3" />
+                                  <span
+                                    className="text-red-500 font-mono font-bold text-[11px] flex items-center gap-0.5 bg-red-50 dark:bg-red-950/30 px-2 py-0.5 rounded-md"
+                                    title="Empeoramiento de rendimiento"
+                                  >
+                                    {delta.isPositive ? (
+                                      <TrendingUp className="w-3 h-3" />
+                                    ) : (
+                                      <TrendingDown className="w-3 h-3" />
+                                    )}
                                     {delta.formatted}
                                   </span>
                                 )
@@ -356,7 +389,7 @@ export default function TestsPage() {
                               </span>
                               <span
                                 className={`font-mono font-black text-xs px-2 py-0.5 rounded-lg ${
-                                  fatigue.totalDropPercentage < 0
+                                  fatigue.isTotalLoss
                                     ? 'bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400'
                                     : 'bg-moss-100 dark:bg-moss-950/50 text-moss'
                                 }`}
@@ -378,7 +411,7 @@ export default function TestsPage() {
                                   {idx > 0 ? (
                                     <span
                                       className={`font-mono text-[10px] font-bold ${
-                                        s.percentageDrop < 0 ? 'text-red-500' : 'text-moss'
+                                        s.isLoss ? 'text-red-500' : 'text-moss'
                                       }`}
                                     >
                                       {s.percentageDrop > 0 ? '+' : ''}

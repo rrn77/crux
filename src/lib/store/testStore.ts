@@ -96,7 +96,8 @@ export const useTestStore = create<TestStore>()(
 export function calculateTestDelta(
   currentValue: number,
   previousValue?: number,
-  unit: string = ''
+  unit: string = '',
+  targetMetric: 'higher_is_better' | 'lower_is_better' = 'higher_is_better'
 ): {
   deltaValue: number;
   percentage: number;
@@ -109,9 +110,13 @@ export function calculateTestDelta(
 
   const deltaValue = currentValue - previousValue;
   const percentage = previousValue !== 0 ? (deltaValue / previousValue) * 100 : 0;
-  const isPositive = deltaValue > 0;
   const isNeutral = deltaValue === 0;
-  const isImprovement = deltaValue > 0;
+
+  // Si targetMetric === 'lower_is_better' (ej: mm de regleta o tiempo):
+  // Disminuir (deltaValue < 0) es MEJORA (isImprovement = true)
+  // Aumentar (deltaValue > 0) es EMPEORAMIENTO (isImprovement = false)
+  const isImprovement = targetMetric === 'lower_is_better' ? deltaValue < 0 : deltaValue > 0;
+  const isPositive = deltaValue > 0;
   const sign = deltaValue > 0 ? '+' : '';
   const formatted = `${sign}${Math.round(deltaValue * 10) / 10} ${unit} (${sign}${Math.round(percentage * 10) / 10}%)`;
 
@@ -131,6 +136,7 @@ export interface SetFatigueAnalysis {
   percentageOfFirst: number;
   deltaFromFirst: number;
   percentageDrop: number;
+  isLoss: boolean;
   notes?: string;
 }
 
@@ -142,18 +148,26 @@ export interface TestFatigueSummary {
   averageValue: number;
   totalDropAbsolute: number;
   totalDropPercentage: number;
+  isTotalLoss: boolean;
   setsAnalysis: SetFatigueAnalysis[];
 }
 
 /**
  * Helper para calcular la fatiga acumulada entre series de un mismo test
  */
-export function calculateTestFatigue(sets?: import('../types').TestSet[]): TestFatigueSummary | null {
+export function calculateTestFatigue(
+  sets?: import('../types').TestSet[],
+  targetMetric: 'higher_is_better' | 'lower_is_better' = 'higher_is_better'
+): TestFatigueSummary | null {
   if (!sets || sets.length === 0) return null;
 
   const firstValue = sets[0].value;
   const lastValue = sets[sets.length - 1].value;
-  const peakValue = Math.max(...sets.map((s) => s.value));
+  const peakValue =
+    targetMetric === 'lower_is_better'
+      ? Math.min(...sets.map((s) => s.value))
+      : Math.max(...sets.map((s) => s.value));
+
   const sum = sets.reduce((acc, s) => acc + s.value, 0);
   const averageValue = Math.round((sum / sets.length) * 10) / 10;
 
@@ -161,12 +175,23 @@ export function calculateTestFatigue(sets?: import('../types').TestSet[]): TestF
   const totalDropPercentage =
     firstValue !== 0 ? Math.round(((lastValue - firstValue) / firstValue) * 1000) / 10 : 0;
 
+  const isTotalLoss =
+    targetMetric === 'lower_is_better' ? lastValue > firstValue : lastValue < firstValue;
+
   const setsAnalysis: SetFatigueAnalysis[] = sets.map((s) => {
     const deltaFromFirst = Math.round((s.value - firstValue) * 10) / 10;
     const percentageOfFirst =
-      firstValue !== 0 ? Math.round((s.value / firstValue) * 1000) / 10 : 100;
+      firstValue !== 0
+        ? targetMetric === 'lower_is_better' && s.value !== 0
+          ? Math.round((firstValue / s.value) * 1000) / 10
+          : Math.round((s.value / firstValue) * 1000) / 10
+        : 100;
+
     const percentageDrop =
       firstValue !== 0 ? Math.round(((s.value - firstValue) / firstValue) * 1000) / 10 : 0;
+
+    const isLoss =
+      targetMetric === 'lower_is_better' ? s.value > firstValue : s.value < firstValue;
 
     return {
       setNumber: s.setNumber,
@@ -174,6 +199,7 @@ export function calculateTestFatigue(sets?: import('../types').TestSet[]): TestF
       percentageOfFirst,
       deltaFromFirst,
       percentageDrop,
+      isLoss,
       notes: s.notes,
     };
   });
@@ -186,6 +212,7 @@ export function calculateTestFatigue(sets?: import('../types').TestSet[]): TestF
     averageValue,
     totalDropAbsolute,
     totalDropPercentage,
+    isTotalLoss,
     setsAnalysis,
   };
 }

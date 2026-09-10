@@ -37,6 +37,7 @@ interface EditTestModalProps {
 export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
   const { updateTest } = useTestStore();
 
+  const [targetMetric, setTargetMetric] = useState<'higher_is_better' | 'lower_is_better'>('higher_is_better');
   const [sets, setSets] = useState<FormSetItem[]>([]);
   const [setsError, setSetsError] = useState<string | null>(null);
 
@@ -45,6 +46,7 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<EditTestFormData>({
     resolver: zodResolver(editTestSchema),
@@ -62,6 +64,13 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
         testedAt: dateIso,
         notes: test.notes || '',
       });
+
+      setTargetMetric(
+        test.targetMetric ||
+          (test.unit?.toLowerCase() === 'mm' || test.title?.toLowerCase().includes('mm')
+            ? 'lower_is_better'
+            : 'higher_is_better')
+      );
 
       if (test.sets && test.sets.length > 0) {
         setSets(
@@ -83,6 +92,14 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
       setSetsError(null);
     }
   }, [test, reset]);
+
+  const handleUnitChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setValue('unit', val);
+    if (val.toLowerCase().trim() === 'mm') {
+      setTargetMetric('lower_is_better');
+    }
+  };
 
   const handleAddSet = () => {
     const lastSet = sets[sets.length - 1];
@@ -121,8 +138,8 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
 
   const fatigueAnalysis = useMemo(() => {
     if (validTestSets.length <= 1) return null;
-    return calculateTestFatigue(validTestSets);
-  }, [validTestSets]);
+    return calculateTestFatigue(validTestSets, targetMetric);
+  }, [validTestSets, targetMetric]);
 
   if (!test) return null;
 
@@ -142,7 +159,10 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
       testedAtIso = new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
     }
 
-    const peakValue = Math.max(...validTestSets.map((s) => s.value));
+    const peakValue =
+      targetMetric === 'lower_is_better'
+        ? Math.min(...validTestSets.map((s) => s.value))
+        : Math.max(...validTestSets.map((s) => s.value));
 
     const updated: Partial<TestRecord> = {
       title: data.title.trim(),
@@ -152,6 +172,7 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
       testedAt: testedAtIso,
       notes: data.notes?.trim() || undefined,
       sets: validTestSets.length > 1 ? validTestSets : undefined,
+      targetMetric,
     };
 
     updateTest(test.id, updated);
@@ -184,8 +205,9 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
         <div className="grid grid-cols-2 gap-3">
           <Input
             label="Unidad"
-            placeholder="kg, s, rep, grado..."
+            placeholder="kg, s, rep, grado, mm..."
             {...register('unit')}
+            onChange={handleUnitChange}
             error={errors.unit?.message}
           />
 
@@ -195,6 +217,66 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
             {...register('testedAt')}
             error={errors.testedAt?.message}
           />
+        </div>
+
+        {/* Objetivo de la Métrica */}
+        <div className="space-y-1.5 pt-1">
+          <label className="block text-xs font-bold uppercase tracking-wider text-graphite-700 dark:text-graphite-300">
+            Criterio de Mejora (Objetivo)
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setTargetMetric('higher_is_better')}
+              className={`p-2.5 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
+                targetMetric === 'higher_is_better'
+                  ? 'border-terracotta bg-terracotta-50/60 dark:bg-terracotta-950/30 ring-1 ring-terracotta text-graphite-900 dark:text-white'
+                  : 'border-chalk-300 dark:border-graphite-700 bg-chalk-100/60 dark:bg-graphite-800/60 text-graphite-600 dark:text-graphite-400 hover:border-chalk-400'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-xl flex items-center justify-center shrink-0 text-xs font-black ${
+                  targetMetric === 'higher_is_better'
+                    ? 'bg-terracotta text-white'
+                    : 'bg-chalk-200 dark:bg-graphite-700 text-graphite-600 dark:text-graphite-400'
+                }`}
+              >
+                ↑
+              </div>
+              <div>
+                <div className="text-xs font-bold">Aumentar (Más es mejor)</div>
+                <div className="text-[10px] text-graphite-500">
+                  kg, reps, s, grado...
+                </div>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setTargetMetric('lower_is_better')}
+              className={`p-2.5 rounded-2xl border text-left flex items-start gap-2.5 transition-all ${
+                targetMetric === 'lower_is_better'
+                  ? 'border-terracotta bg-terracotta-50/60 dark:bg-terracotta-950/30 ring-1 ring-terracotta text-graphite-900 dark:text-white'
+                  : 'border-chalk-300 dark:border-graphite-700 bg-chalk-100/60 dark:bg-graphite-800/60 text-graphite-600 dark:text-graphite-400 hover:border-chalk-400'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-xl flex items-center justify-center shrink-0 text-xs font-black ${
+                  targetMetric === 'lower_is_better'
+                    ? 'bg-terracotta text-white'
+                    : 'bg-chalk-200 dark:bg-graphite-700 text-graphite-600 dark:text-graphite-400'
+                }`}
+              >
+                ↓
+              </div>
+              <div>
+                <div className="text-xs font-bold">Reducir (Menos es mejor)</div>
+                <div className="text-[10px] text-graphite-500">
+                  mm de regleta, tiempo...
+                </div>
+              </div>
+            </button>
+          </div>
         </div>
 
         {/* Sección de Series e Intentos */}
@@ -311,7 +393,7 @@ export function EditTestModal({ isOpen, onClose, test }: EditTestModalProps) {
 
               <div className="bg-white dark:bg-graphite-900 p-2.5 rounded-xl border border-chalk-200 dark:border-graphite-800">
                 <div className="text-xs text-graphite-500 font-semibold">Caída Total</div>
-                <div className={`font-mono font-black text-base ${fatigueAnalysis.totalDropPercentage <= 0 ? 'text-red-500' : 'text-moss'}`}>
+                <div className={`font-mono font-black text-base ${fatigueAnalysis.isTotalLoss ? 'text-red-500' : 'text-moss'}`}>
                   {fatigueAnalysis.totalDropPercentage > 0 ? '+' : ''}
                   {fatigueAnalysis.totalDropPercentage}%
                 </div>

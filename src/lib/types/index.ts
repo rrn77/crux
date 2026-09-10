@@ -77,10 +77,11 @@ export interface TestRecord {
   title: string;          // Ej: "Hangboard 20 mm", "Dominada lastrada", "Máximo grado"
   protocol?: string;       // Ej: "7s suspensión monobrazo", "1RM con cinto", "A vista"
   value: number;          // Mejor marca / Valor principal (ej: 25.5, 8.1, etc.)
-  unit: string;           // "kg", "s", "rep", "grado", "%"
+  unit: string;           // "kg", "s", "rep", "grado", "%", "mm"
   testedAt: string;       // ISO date
   notes?: string;
   sets?: TestSet[];       // Múltiples series para análisis de fatiga rápida
+  targetMetric?: 'higher_is_better' | 'lower_is_better'; // 'higher_is_better' (más es mejor) o 'lower_is_better' (menos es mejor: ej. mm de regleta)
   createdAt: string;
 }
 
