@@ -16,15 +16,34 @@ import {
   Dumbbell,
 } from 'lucide-react';
 import { useTestStore, calculateTestDelta } from '@/lib/store/testStore';
+import { syncService } from '@/lib/supabase/syncService';
 import { TestRecord } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { EditTestModal } from '@/components/test/EditTestModal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function TestsPage() {
   const { tests, getPreviousTest, deleteTest, getUniqueTitles } = useTestStore();
   const [selectedExerciseFilter, setSelectedExerciseFilter] = useState<string>('all');
   const [editingTest, setEditingTest] = useState<TestRecord | null>(null);
+  const [deletingTest, setDeletingTest] = useState<TestRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!deletingTest) return;
+    setIsDeleting(true);
+    try {
+      const id = deletingTest.id;
+      deleteTest(id);
+      await syncService.deleteTest(id);
+    } catch (err) {
+      console.warn('Error al eliminar test:', err);
+    } finally {
+      setIsDeleting(false);
+      setDeletingTest(null);
+    }
+  };
 
   const uniqueTitles = getUniqueTitles();
 
@@ -235,11 +254,7 @@ export default function TestsPage() {
 
                           <button
                             type="button"
-                            onClick={() => {
-                              if (confirm(`¿Eliminar la marca de "${test.title}"?`)) {
-                                deleteTest(test.id);
-                              }
-                            }}
+                            onClick={() => setDeletingTest(test)}
                             aria-label={`Eliminar marca de ${test.title}`}
                             title="Eliminar test"
                             className="p-2 text-graphite-400 hover:text-red-600 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
@@ -277,6 +292,25 @@ export default function TestsPage() {
         isOpen={Boolean(editingTest)}
         onClose={() => setEditingTest(null)}
         test={editingTest}
+      />
+
+      {/* Modal para Confirmar Eliminación de Test */}
+      <ConfirmModal
+        isOpen={Boolean(deletingTest)}
+        onClose={() => {
+          if (!isDeleting) setDeletingTest(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="¿Eliminar este test?"
+        description={
+          deletingTest
+            ? `¿Estás seguro de que deseas eliminar el registro de "${deletingTest.title}" (${deletingTest.value} ${deletingTest.unit})? Esta acción se sincronizará con tu cuenta y no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar Test"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={isDeleting}
       />
     </div>
   );

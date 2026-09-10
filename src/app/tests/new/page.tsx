@@ -8,6 +8,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowLeft, Save, History, Activity, Sparkles } from 'lucide-react';
 import { useTestStore } from '@/lib/store/testStore';
+import { useAuthStore } from '@/lib/supabase/authStore';
+import { syncService } from '@/lib/supabase/syncService';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 
@@ -78,8 +80,8 @@ export default function NewTestPage() {
     setValue('unit', item.unit, { shouldValidate: true });
   };
 
-  const onSubmit = (data: TestFormData) => {
-    addTest({
+  const onSubmit = async (data: TestFormData) => {
+    const newTest = addTest({
       title: data.title.trim(),
       protocol: data.protocol?.trim() || undefined,
       value: data.value,
@@ -87,6 +89,11 @@ export default function NewTestPage() {
       testedAt: new Date(data.testedAt).toISOString(),
       notes: data.notes?.trim() || undefined,
     });
+
+    const user = useAuthStore.getState().user;
+    if (user) {
+      await syncService.pushTest(newTest, user.id);
+    }
 
     router.push('/tests');
   };

@@ -272,19 +272,20 @@ class SupabaseSyncService {
       }
     }
 
-    if (formattedTests.length > 0) {
-      useTestStore.setState({ tests: formattedTests });
-    }
+    // Actualizar store local con las pruebas remotas
+    useTestStore.setState({ tests: formattedTests });
   }
 
   /**
    * Subir un test físico a Supabase
    */
-  async pushTest(test: TestRecord, userId: string) {
-    if (!supabase) return;
+  async pushTest(test: TestRecord, userId: string): Promise<string | undefined> {
+    if (!supabase) return undefined;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(test.id);
 
     try {
-      await supabase.from('tests').insert({
+      const payload: Record<string, unknown> = {
         user_id: userId,
         title: test.title,
         protocol: test.protocol,
@@ -292,9 +293,32 @@ class SupabaseSyncService {
         unit: test.unit,
         tested_at: test.testedAt,
         notes: test.notes,
-      });
+      };
+
+      if (isUuid) {
+        payload.id = test.id;
+      }
+
+      const { data, error } = await supabase
+        .from('tests')
+        .upsert(payload)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.warn('Error al guardar test en Supabase:', error);
+        return undefined;
+      }
+
+      if (data?.id && data.id !== test.id) {
+        useTestStore.getState().updateTest(test.id, { id: data.id });
+        return data.id;
+      }
+
+      return data?.id || test.id;
     } catch (err) {
       console.warn('Error al guardar test en Supabase:', err);
+      return undefined;
     }
   }
 
@@ -346,8 +370,16 @@ class SupabaseSyncService {
   async deleteTest(id: string) {
     if (!supabase) return;
     try {
-      await supabase.from('tests').delete().eq('id', id);
-    } catch {}
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+      if (isUuid) {
+        const { error } = await supabase.from('tests').delete().eq('id', id);
+        if (error) {
+          console.warn('Error al borrar test en Supabase:', error);
+        }
+      }
+    } catch (err) {
+      console.warn('Error al eliminar test de Supabase:', err);
+    }
   }
 }
 

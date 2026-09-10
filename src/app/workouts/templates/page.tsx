@@ -15,23 +15,35 @@ import {
 } from 'lucide-react';
 import { useWorkoutStore } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
+import { syncService } from '@/lib/supabase/syncService';
 import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function TemplatesPage() {
   const router = useRouter();
   const { templates, deleteTemplate } = useWorkoutStore();
   const { startWorkout } = useActiveWorkoutStore();
+  const [deletingTemplate, setDeletingTemplate] = React.useState<{ id: string; title: string } | null>(null);
+  const [isDeleting, setIsDeleting] = React.useState(false);
 
   const handleStartTemplate = (template: (typeof templates)[0]) => {
     startWorkout(template.title, template.blocks, template.id);
     router.push('/workout/active');
   };
 
-  const handleDeleteTemplate = (id: string, title: string) => {
-    if (confirm(`¿Eliminar la plantilla "${title}"?`)) {
-      deleteTemplate(id);
+  const handleConfirmDelete = async () => {
+    if (!deletingTemplate) return;
+    setIsDeleting(true);
+    try {
+      deleteTemplate(deletingTemplate.id);
+      await syncService.deleteTemplate(deletingTemplate.id);
+    } catch (err) {
+      console.warn('Error al eliminar plantilla:', err);
+    } finally {
+      setIsDeleting(false);
+      setDeletingTemplate(null);
     }
   };
 
@@ -111,7 +123,7 @@ export default function TemplatesPage() {
               <div className="flex items-center justify-between pt-1">
                 <button
                   type="button"
-                  onClick={() => handleDeleteTemplate(tpl.id, tpl.title)}
+                  onClick={() => setDeletingTemplate({ id: tpl.id, title: tpl.title })}
                   className="text-xs font-bold text-red-600 hover:text-red-700 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex items-center gap-1"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -160,6 +172,22 @@ export default function TemplatesPage() {
           </Link>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={Boolean(deletingTemplate)}
+        onClose={() => !isDeleting && setDeletingTemplate(null)}
+        onConfirm={handleConfirmDelete}
+        title="¿Eliminar esta plantilla?"
+        description={
+          deletingTemplate
+            ? `¿Estás seguro de que deseas eliminar la plantilla "${deletingTemplate.title}"? Esta acción se sincronizará con tu cuenta y no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar Plantilla"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

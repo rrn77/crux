@@ -13,13 +13,24 @@ interface TestStore {
   clearTestStore: () => void;
 }
 
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 export const useTestStore = create<TestStore>()(
   persist(
     (set, get) => ({
       tests: [],
 
       addTest: (testData) => {
-        const id = `test-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+        const id = generateUUID();
         const newTest: TestRecord = {
           ...testData,
           id,

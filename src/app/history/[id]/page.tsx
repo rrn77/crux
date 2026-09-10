@@ -16,9 +16,11 @@ import {
 } from 'lucide-react';
 import { useWorkoutStore } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
+import { syncService } from '@/lib/supabase/syncService';
 import { formatDurationHuman, formatSecondsToTime, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function HistoryDetailPage() {
   const params = useParams();
@@ -49,15 +51,25 @@ export default function HistoryDetailPage() {
     year: 'numeric',
   });
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const [isDeleting, setIsDeleting] = React.useState(false);
+
   const handleRepeatSession = () => {
     startWorkout(session.title, session.blocks, session.templateId);
     router.push('/workout/active');
   };
 
-  const handleDeleteSession = () => {
-    if (confirm('¿Estás seguro de eliminar este registro del historial?')) {
+  const handleConfirmDelete = async () => {
+    setIsDeleting(true);
+    try {
       deleteSession(sessionId);
+      await syncService.deleteSession(sessionId);
       router.push('/history');
+    } catch (err) {
+      console.warn('Error al eliminar sesión:', err);
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -75,7 +87,7 @@ export default function HistoryDetailPage() {
 
         <button
           type="button"
-          onClick={handleDeleteSession}
+          onClick={() => setShowDeleteConfirm(true)}
           aria-label="Eliminar registro"
           className="text-xs font-bold text-red-600 hover:text-red-700 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors flex items-center gap-1"
         >
@@ -194,6 +206,18 @@ export default function HistoryDetailPage() {
           ))}
         </div>
       </div>
+
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => !isDeleting && setShowDeleteConfirm(false)}
+        onConfirm={handleConfirmDelete}
+        title="¿Eliminar esta sesión?"
+        description={`¿Estás seguro de eliminar el registro del entrenamiento "${session.title}"? Esta acción se sincronizará con tu cuenta y no se puede deshacer.`}
+        confirmText="Eliminar Sesión"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }
