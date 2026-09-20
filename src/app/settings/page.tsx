@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Volume2,
@@ -44,6 +44,34 @@ export default function SettingsPage() {
   const { tests } = useTestStore();
 
   const [notifMessage, setNotifMessage] = useState<string | null>(null);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | 'unsupported' | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotifPermission('unsupported');
+      return;
+    }
+    setNotifPermission(Notification.permission);
+  }, []);
+
+  const handleTestNotification = async () => {
+    setNotifMessage(null);
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+      setNotifMessage('Este navegador no soporta Service Workers, así que no puede mostrar notificaciones.');
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification('CRUX', {
+        body: 'Notificación de prueba — si ves esto, el sistema funciona correctamente.',
+        tag: 'crux-test-notification',
+        icon: '/icons/icon-192.svg',
+        badge: '/icons/icon-192.svg',
+      });
+    } catch (err) {
+      setNotifMessage(`No se pudo mostrar la notificación de prueba: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
 
   const handleToggleNotifications = async () => {
     if (notificationsEnabled) {
@@ -69,6 +97,7 @@ export default function SettingsPage() {
     }
 
     const permission = await Notification.requestPermission();
+    setNotifPermission(permission);
     if (permission === 'granted') {
       setNotificationsEnabled(true);
       setNotifMessage(null);
@@ -237,6 +266,32 @@ export default function SettingsPage() {
               />
             </button>
           </div>
+
+          {notifPermission && (
+            <div className="pt-1 pb-2 flex items-center justify-between gap-2 text-xs">
+              <span className="text-graphite-500">
+                Permiso del navegador:{' '}
+                <strong className="font-mono text-graphite-700 dark:text-graphite-300">
+                  {notifPermission === 'granted'
+                    ? 'concedido'
+                    : notifPermission === 'denied'
+                    ? 'denegado'
+                    : notifPermission === 'unsupported'
+                    ? 'no soportado'
+                    : 'no solicitado'}
+                </strong>
+              </span>
+              {notifPermission === 'granted' && (
+                <button
+                  type="button"
+                  onClick={handleTestNotification}
+                  className="font-bold text-terracotta hover:underline"
+                >
+                  Probar notificación
+                </button>
+              )}
+            </div>
+          )}
 
           {notifMessage && (
             <div className="mt-1 mb-2 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-amber-800 dark:text-amber-300 rounded-xl text-xs flex items-center gap-2">

@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { useSettingsStore } from '@/lib/store/settingsStore';
 import { formatSecondsToTime } from '@/lib/timer/durationHelper';
+import { calculateRemainingSeconds } from '@/lib/timer/timerEngine';
 
 const NOTIFICATION_TAG = 'crux-workout-timer';
 
@@ -30,60 +31,56 @@ async function closeWorkoutNotification() {
   } catch {}
 }
 
+async function updateWorkoutNotification() {
+  const state = useActiveWorkoutStore.getState();
+  if (!state.isActive || !state.session) return;
+
+  const block = state.session.blocks[state.currentBlockIndex];
+  // Se recalcula desde el timestamp de la fase (no desde el contador de la store) para que
+  // el valor mostrado sea correcto aunque el intervalo de esta pestaña se haya visto frenado
+  // por el navegador mientras la app estaba en segundo plano.
+  const remaining = calculateRemainingSeconds(state.timerState, Date.now());
+  const title = `${phaseLabel(state.timerState.phase)} · ${formatSecondsToTime(remaining)}`;
+  const body = block ? `${block.title} — ${state.session.title}` : state.session.title;
+
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    await reg.showNotification(title, {
+      body,
+      tag: NOTIFICATION_TAG,
+      silent: true,
+      icon: '/icons/icon-192.svg',
+      badge: '/icons/icon-192.svg',
+    });
+  } catch (err) {
+    console.warn('CRUX: no se pudo mostrar la notificación del temporizador', err);
+  }
+}
+
 /**
- * Muestra una notificación del sistema con la cuenta atrás mientras el usuario ha salido
- * de la app (pestaña/app en segundo plano) con un entrenamiento activo. Es "mejor esfuerzo":
- * solo se actualiza mientras el navegador mantenga el proceso vivo en segundo plano, lo que
- * en la práctica solo es fiable en Android — iOS Safari suspende la ejecución en cuanto la
- * PWA deja de estar en primer plano, así que ahí simplemente no llegará a actualizarse.
+ * Muestra una notificación del sistema con la cuenta atrás mientras hay un entrenamiento
+ * activo, igual que el contador de un cronómetro/temporizador nativo — se actualiza tanto
+ * en primer plano como en segundo plano, y se cierra al terminar/abandonar la sesión.
+ * Es "mejor esfuerzo": solo sigue actualizándose mientras el navegador mantenga el proceso
+ * vivo en segundo plano, lo que en la práctica solo es fiable en Android — iOS Safari
+ * suspende la ejecución en cuanto la PWA deja de estar en primer plano.
  */
 export function WorkoutNotificationManager() {
   const isActive = useActiveWorkoutStore((s) => s.isActive);
   const notificationsEnabled = useSettingsStore((s) => s.notificationsEnabled);
 
-  // Cerrar la notificación en cuanto se recupera el foco o termina/aborta la sesión
-  useEffect(() => {
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        closeWorkoutNotification();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, []);
-
   useEffect(() => {
     if (!isActive) {
       closeWorkoutNotification();
+      return;
     }
-  }, [isActive]);
 
-  useEffect(() => {
-    if (!isActive || !notificationsEnabled) return;
+    if (!notificationsEnabled) return;
     if (typeof window === 'undefined' || !('serviceWorker' in navigator) || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
 
-    const intervalId = setInterval(async () => {
-      if (document.visibilityState !== 'hidden') return;
-      if (Notification.permission !== 'granted') return;
-
-      const state = useActiveWorkoutStore.getState();
-      if (!state.isActive || !state.session) return;
-
-      const block = state.session.blocks[state.currentBlockIndex];
-      const title = `${phaseLabel(state.timerState.phase)} · ${formatSecondsToTime(state.timerState.secondsRemaining)}`;
-      const body = block ? `${block.title} — ${state.session.title}` : state.session.title;
-
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        await reg.showNotification(title, {
-          body,
-          tag: NOTIFICATION_TAG,
-          silent: true,
-          icon: '/icons/icon-192.svg',
-          badge: '/icons/icon-192.svg',
-        });
-      } catch {}
-    }, 1000);
+    updateWorkoutNotification();
+    const intervalId = setInterval(updateWorkoutNotification, 1000);
 
     return () => clearInterval(intervalId);
   }, [isActive, notificationsEnabled]);
