@@ -80,6 +80,7 @@ export interface UserSettings {
   darkMode: boolean;
   autoStartRest: boolean;
   voiceCountdown: boolean;
+  notificationsEnabled: boolean;
 }
 
 export interface ActiveWorkoutState {

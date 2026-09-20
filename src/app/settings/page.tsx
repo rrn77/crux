@@ -1,17 +1,20 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import {
   Volume2,
   VolumeX,
   Vibrate,
+  Bell,
+  BellOff,
   Moon,
   Sun,
   Database,
   Download,
   Trash2,
   CheckCircle,
+  AlertCircle,
   ArrowLeft,
   Info,
 } from 'lucide-react';
@@ -33,10 +36,46 @@ export default function SettingsPage() {
     toggleDarkMode,
     autoStartRest,
     setAutoStartRest,
+    notificationsEnabled,
+    setNotificationsEnabled,
   } = useSettingsStore();
 
   const { sessions } = useWorkoutStore();
   const { tests } = useTestStore();
+
+  const [notifMessage, setNotifMessage] = useState<string | null>(null);
+
+  const handleToggleNotifications = async () => {
+    if (notificationsEnabled) {
+      setNotificationsEnabled(false);
+      setNotifMessage(null);
+      return;
+    }
+
+    if (typeof window === 'undefined' || !('Notification' in window)) {
+      setNotifMessage('Tu navegador no soporta notificaciones.');
+      return;
+    }
+
+    if (Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+      setNotifMessage(null);
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      setNotifMessage('Bloqueaste las notificaciones para CRUX. Actívalas desde los ajustes de sitio de tu navegador.');
+      return;
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      setNotificationsEnabled(true);
+      setNotifMessage(null);
+    } else {
+      setNotifMessage('No se concedió el permiso de notificaciones.');
+    }
+  };
 
   const handleExportData = () => {
     const data = {
@@ -168,6 +207,43 @@ export default function SettingsPage() {
               />
             </button>
           </div>
+
+          {/* Notificaciones en segundo plano */}
+          <div className="py-3 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                {notificationsEnabled ? <Bell className="w-5 h-5" /> : <BellOff className="w-5 h-5" />}
+              </div>
+              <div>
+                <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
+                  Notificación del Temporizador
+                </div>
+                <div className="text-xs text-graphite-500">
+                  Cuenta atrás en la bandeja de notificaciones al salir de la app. Mejor esfuerzo: fiable en Android, no funciona en iPhone (limitación de Apple para apps web).
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleToggleNotifications}
+              className={`w-12 h-6 rounded-full transition-colors relative p-0.5 shrink-0 ${
+                notificationsEnabled ? 'bg-terracotta' : 'bg-chalk-300 dark:bg-graphite-700'
+              }`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full bg-white transition-transform ${
+                  notificationsEnabled ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {notifMessage && (
+            <div className="mt-1 mb-2 p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 text-amber-800 dark:text-amber-300 rounded-xl text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{notifMessage}</span>
+            </div>
+          )}
         </div>
       </div>
 

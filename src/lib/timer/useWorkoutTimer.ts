@@ -1,47 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
 import { useActiveWorkoutStore } from '../store/activeWorkoutStore';
 
 /**
- * Hook principal para consumir y controlar el temporizador de la sesión activa
- * Sincronizado automáticamente mediante timestamps e inmune al bloqueo de pantalla
+ * Hook principal para consumir y controlar el temporizador de la sesión activa.
+ * El "tick" en sí (setInterval + resincronización con timestamps ante bloqueo de
+ * pantalla o segundo plano) corre a nivel global en <GlobalWorkoutTicker />, para que
+ * el conteo siga avanzando aunque el usuario salga de /workout/active dentro de la app.
  */
 export function useWorkoutTimer() {
   const store = useActiveWorkoutStore();
-  const tickRef = useRef<number | null>(null);
-
-  // Ciclo de reloj de alta precisión (cada 250ms para no perder transiciones ni cuenta atrás)
-  useEffect(() => {
-    if (!store.isActive || !store.session) return;
-
-    const intervalId = setInterval(() => {
-      store.tick();
-    }, 250);
-
-    return () => clearInterval(intervalId);
-  }, [store.isActive, store.session]);
-
-  // Listener para eventos de visibilidad (cambio de pestaña, bloqueo de móvil, etc.)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        store.syncBackground();
-      }
-    };
-
-    const handleFocus = () => {
-      store.syncBackground();
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, []);
 
   const currentBlock = store.session && store.session.blocks[store.currentBlockIndex]
     ? store.session.blocks[store.currentBlockIndex]

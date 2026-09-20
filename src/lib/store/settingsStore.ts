@@ -8,6 +8,7 @@ interface SettingsStore extends UserSettings {
   setDarkMode: (enabled: boolean) => void;
   toggleDarkMode: () => void;
   setAutoStartRest: (enabled: boolean) => void;
+  setNotificationsEnabled: (enabled: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -18,12 +19,14 @@ export const useSettingsStore = create<SettingsStore>()(
       darkMode: false,
       autoStartRest: true,
       voiceCountdown: false,
+      notificationsEnabled: false,
 
       setSoundEnabled: (soundEnabled) => set({ soundEnabled }),
       setVibrationEnabled: (vibrationEnabled) => set({ vibrationEnabled }),
       setDarkMode: (darkMode) => set({ darkMode }),
       toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
       setAutoStartRest: (autoStartRest) => set({ autoStartRest }),
+      setNotificationsEnabled: (notificationsEnabled) => set({ notificationsEnabled }),
     }),
     {
       name: 'crux-user-settings',

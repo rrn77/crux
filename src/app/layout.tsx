@@ -3,6 +3,8 @@ import './globals.css';
 import { Header } from '@/components/layout/Header';
 import { Navbar } from '@/components/layout/Navbar';
 import { ActiveWorkoutBanner } from '@/components/layout/ActiveWorkoutBanner';
+import { GlobalWorkoutTicker } from '@/components/layout/GlobalWorkoutTicker';
+import { WorkoutNotificationManager } from '@/components/layout/WorkoutNotificationManager';
 import { PwaRegister } from '@/components/layout/PwaRegister';
 import { AuthGate } from '@/components/auth/AuthGate';
 
@@ -39,6 +41,8 @@ export default function RootLayout({
       <body className="antialiased flex flex-col min-h-screen bg-chalk-100 dark:bg-graphite-950 text-graphite-900 dark:text-graphite-100 font-sans transition-colors duration-200">
         <PwaRegister />
         <AuthGate>
+          <GlobalWorkoutTicker />
+          <WorkoutNotificationManager />
           <Header />
           <ActiveWorkoutBanner />
           <main className="flex-1 max-w-2xl w-full mx-auto px-4 py-4 pb-24">
