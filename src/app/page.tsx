@@ -13,10 +13,12 @@ import {
   CalendarCheck,
   CheckCircle2,
   Trash2,
+  Mountain,
 } from 'lucide-react';
 import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { useTestStore } from '@/lib/store/testStore';
+import { useRockSessionStore } from '@/lib/store/rockSessionStore';
 import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -28,6 +30,7 @@ export default function HomePage() {
   const { sessions, getTodaySession, deleteSession } = useWorkoutStore();
   const { startWorkout } = useActiveWorkoutStore();
   const { tests } = useTestStore();
+  const { rockSessions } = useRockSessionStore();
 
   const [mounted, setMounted] = useState(false);
   const [deletingSession, setDeletingSession] = useState<{ id: string; title: string } | null>(null);
@@ -83,6 +86,7 @@ export default function HomePage() {
       isToday: boolean;
       session?: WorkoutSession;
       hasTest: boolean;
+      hasRock: boolean;
     }> = [];
 
     const dayNamesShort = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -102,6 +106,8 @@ export default function HomePage() {
         (t) => getLocalDateIsoString(new Date(t.testedAt)) === dateStr
       );
 
+      const hasRock = rockSessions.some((r) => r.date === dateStr);
+
       week.push({
         dateStr,
         dayNumber: d.getDate(),
@@ -109,11 +115,12 @@ export default function HomePage() {
         isToday: dateStr === todayIso,
         session: daySession,
         hasTest,
+        hasRock,
       });
     }
 
     return week;
-  }, [sessions, tests, todayIso]);
+  }, [sessions, tests, rockSessions, todayIso]);
 
   const handleStartTodaySession = () => {
     if (!todaySession) return;
@@ -304,7 +311,47 @@ export default function HomePage() {
                 Planificar Sesión de Hoy
               </Button>
             </Link>
+            <Link href={`/rock/new?date=${todayIso}`}>
+              <Button variant="outline" size="md" className="border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20">
+                <Mountain className="w-4 h-4 mr-1.5 text-amber-600" />
+                Registrar Roca Hoy
+              </Button>
+            </Link>
           </div>
+        </div>
+      )}
+
+      {/* Tarjeta de Sesión de Roca de Hoy (si existe) */}
+      {rockSessions.filter((r) => r.date === todayIso).length > 0 && (
+        <div className="space-y-3">
+          {rockSessions
+            .filter((r) => r.date === todayIso)
+            .map((rock) => (
+              <div
+                key={rock.id}
+                className="bg-gradient-to-br from-amber-600 to-amber-800 text-white rounded-3xl p-5 sm:p-6 shadow-lg space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="bg-white/20 text-white text-[11px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+                    <Mountain className="w-3.5 h-3.5" />
+                    Sesión de Roca de Hoy
+                  </span>
+                  {rock.rating && (
+                    <span className="font-bold bg-white/25 px-2.5 py-0.5 rounded-full text-xs">
+                      Valoración: {rock.rating}/10
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">{rock.title}</h2>
+                  {rock.notes && (
+                    <p className="text-xs sm:text-sm text-white/90 mt-1 whitespace-pre-line line-clamp-3">
+                      {rock.notes}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
         </div>
       )}
 
@@ -349,13 +396,19 @@ export default function HomePage() {
                 </span>
 
                 <div className="h-2 flex items-center justify-center gap-0.5">
-                  {hasCompleted ? (
+                  {hasCompleted && (
                     <span className="w-2 h-2 rounded-full bg-moss" title="Entrenamiento completado" />
-                  ) : hasScheduled ? (
+                  )}
+                  {hasScheduled && !hasCompleted && (
                     <span className="w-2 h-2 rounded-full bg-terracotta" title="Sesión planificada" />
-                  ) : day.hasTest ? (
+                  )}
+                  {day.hasTest && (
                     <span className="w-2 h-2 rounded-full bg-blue-500" title="Test físico" />
-                  ) : (
+                  )}
+                  {day.hasRock && (
+                    <span className="w-2 h-2 rounded-full bg-amber-500" title="Sesión de roca" />
+                  )}
+                  {!hasCompleted && !hasScheduled && !day.hasTest && !day.hasRock && (
                     <span className="w-1 h-1 rounded-full bg-chalk-300 dark:bg-graphite-700" />
                   )}
                 </div>
@@ -366,7 +419,7 @@ export default function HomePage() {
       </div>
 
       {/* 3. Accesos Rápidos Principales */}
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <Link
           href="/workouts/new"
           className="p-3.5 rounded-2xl bg-white dark:bg-graphite-900 border border-chalk-300 dark:border-graphite-800 hover:border-terracotta/50 transition-all flex flex-col items-start gap-2 shadow-sm group"
@@ -376,9 +429,24 @@ export default function HomePage() {
           </div>
           <div>
             <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
-              Planificar Sesión
+              Entrenamiento
             </div>
-            <div className="text-[11px] text-graphite-500">Para cualquier día</div>
+            <div className="text-[11px] text-graphite-500">Planificar sesión</div>
+          </div>
+        </Link>
+
+        <Link
+          href="/rock/new"
+          className="p-3.5 rounded-2xl bg-white dark:bg-graphite-900 border border-chalk-300 dark:border-graphite-800 hover:border-amber-500/50 transition-all flex flex-col items-start gap-2 shadow-sm group"
+        >
+          <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
+            <Mountain className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
+              Sesión de Roca
+            </div>
+            <div className="text-[11px] text-graphite-500">{rockSessions.length} registradas</div>
           </div>
         </Link>
 
@@ -391,7 +459,7 @@ export default function HomePage() {
           </div>
           <div>
             <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
-              Tests y Benchmarks
+              Tests Físicos
             </div>
             <div className="text-[11px] text-graphite-500">{tests.length} registros</div>
           </div>
@@ -408,7 +476,7 @@ export default function HomePage() {
             <div className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
               Calendario
             </div>
-            <div className="text-[11px] text-graphite-500">Historial de días</div>
+            <div className="text-[11px] text-graphite-500">Historial completo</div>
           </div>
         </Link>
       </div>

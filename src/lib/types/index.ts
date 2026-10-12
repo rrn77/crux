@@ -83,6 +83,16 @@ export interface UserSettings {
   notificationsEnabled: boolean;
 }
 
+export interface RockSession {
+  id: string;
+  userId?: string;
+  title: string;          // Ej: "El Chorro", "Siurana sesión tarde"
+  date: string;           // YYYY-MM-DD
+  notes?: string;         // Texto libre: vías, condiciones, sensaciones
+  rating?: number;        // Valoración 1-10
+  createdAt: string;      // ISO date
+}
+
 export interface ActiveWorkoutState {
   session: WorkoutSession | null;
   currentBlockIndex: number;

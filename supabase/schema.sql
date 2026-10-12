@@ -77,6 +77,21 @@ CREATE INDEX IF NOT EXISTS idx_block_logs_session_id ON public.block_logs(sessio
 CREATE INDEX IF NOT EXISTS idx_tests_user_id ON public.tests(user_id);
 CREATE INDEX IF NOT EXISTS idx_tests_title_tested_at ON public.tests(user_id, title, tested_at DESC);
 
+-- 4. Tabla: rock_sessions (Sesiones de escalada en roca / rocódromo libre)
+-- Registro cualitativo: título, fecha, notas libres y valoración 1-10.
+CREATE TABLE IF NOT EXISTS public.rock_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    session_date DATE NOT NULL,
+    notes TEXT,
+    rating INTEGER CHECK (rating BETWEEN 1 AND 10),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_rock_sessions_user_id ON public.rock_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_rock_sessions_date ON public.rock_sessions(session_date DESC);
+
 -- =========================================================
 -- ROW LEVEL SECURITY (RLS)
 -- Cada usuario solo puede ver y modificar sus propios datos
@@ -85,6 +100,7 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.block_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rock_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Políticas para profiles
 CREATE POLICY "Users can view their own profile"
@@ -174,6 +190,24 @@ CREATE POLICY "Users can update their own tests"
 
 CREATE POLICY "Users can delete their own tests"
     ON public.tests FOR DELETE
+    USING (auth.uid() = user_id);
+
+-- Políticas para rock_sessions
+CREATE POLICY "Users can view their own rock sessions"
+    ON public.rock_sessions FOR SELECT
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own rock sessions"
+    ON public.rock_sessions FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update their own rock sessions"
+    ON public.rock_sessions FOR UPDATE
+    USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete their own rock sessions"
+    ON public.rock_sessions FOR DELETE
     USING (auth.uid() = user_id);
 
 -- =========================================================

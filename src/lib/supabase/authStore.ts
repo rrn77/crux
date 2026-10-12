@@ -3,12 +3,15 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from './client';
 import { useWorkoutStore } from '../store/workoutStore';
 import { useTestStore } from '../store/testStore';
+import { useRockSessionStore } from '../store/rockSessionStore';
 
 function loadUserData(userId: string) {
   useWorkoutStore.getState().setUserId(userId);
   useTestStore.getState().setUserId(userId);
+  useRockSessionStore.getState().setUserId(userId);
   useWorkoutStore.getState().fetchAll(userId).catch(() => {});
   useTestStore.getState().fetchAll(userId).catch(() => {});
+  useRockSessionStore.getState().fetchAll(userId).catch(() => {});
 }
 
 interface AuthState {
@@ -147,6 +150,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     useWorkoutStore.getState().clearWorkoutStore();
     useTestStore.getState().clearTestStore();
+    useRockSessionStore.getState().clearRockSessionStore();
     set({ user: null, session: null, errorMessage: null });
   },
 

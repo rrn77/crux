@@ -24,13 +24,15 @@ import {
   Sparkles,
   Trash2,
   Copy,
+  Mountain,
 } from 'lucide-react';
 import { useWorkoutStore, getLocalDateIsoString } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
 import { useTestStore, calculateTestDelta, calculateTestFatigue } from '@/lib/store/testStore';
+import { useRockSessionStore } from '@/lib/store/rockSessionStore';
 import { formatDurationHuman, formatBlockSummary } from '@/lib/timer/durationHelper';
 import { buildRetroCompletedSession } from '@/lib/workout/retroComplete';
-import { WorkoutSession, TestRecord } from '@/lib/types';
+import { WorkoutSession, TestRecord, RockSession } from '@/lib/types';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -42,6 +44,7 @@ export default function HistoryPage() {
   const router = useRouter();
   const { sessions, deleteSession, saveSession } = useWorkoutStore();
   const { tests, getPreviousTest } = useTestStore();
+  const { rockSessions, deleteRockSession } = useRockSessionStore();
   const { startWorkout } = useActiveWorkoutStore();
 
   const todayIso = getLocalDateIsoString();
@@ -77,6 +80,24 @@ export default function HistoryPage() {
     } finally {
       setIsDeletingSession(false);
       setDeletingSession(null);
+    }
+  };
+
+  // Estado para modal de confirmación de eliminación de sesión de roca
+  const [deletingRockSession, setDeletingRockSession] = useState<{ id: string; title: string } | null>(null);
+  const [isDeletingRockSession, setIsDeletingRockSession] = useState(false);
+
+  const handleConfirmDeleteRockSession = async () => {
+    if (!deletingRockSession) return;
+    const { id } = deletingRockSession;
+    setIsDeletingRockSession(true);
+    try {
+      await deleteRockSession(id);
+    } catch (err) {
+      console.warn('Error al eliminar sesión de roca:', err);
+    } finally {
+      setIsDeletingRockSession(false);
+      setDeletingRockSession(null);
     }
   };
 
@@ -131,6 +152,19 @@ export default function HistoryPage() {
     return map;
   }, [tests]);
 
+  // Mapeo de sesiones de roca agrupadas por día (YYYY-MM-DD)
+  const rockSessionsByDay = useMemo(() => {
+    const map = new Map<string, RockSession[]>();
+    rockSessions.forEach((r) => {
+      const dateKey = r.date;
+      if (!dateKey) return;
+      const list = map.get(dateKey) || [];
+      list.push(r);
+      map.set(dateKey, list);
+    });
+    return map;
+  }, [rockSessions]);
+
   // Cuadrícula del calendario mensual
   const calendarDays = useMemo(() => {
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
@@ -148,6 +182,7 @@ export default function HistoryPage() {
       completedSessionsCount: number;
       scheduledSessionsCount: number;
       testsCount: number;
+      rockSessionsCount: number;
     }> = [];
 
     // Días del mes anterior
@@ -158,6 +193,7 @@ export default function HistoryPage() {
       const dateStr = getLocalDateIsoString(prevDate);
       const daySessions = sessionsByDay.get(dateStr) || [];
       const dayTests = testsByDay.get(dateStr) || [];
+      const dayRock = rockSessionsByDay.get(dateStr) || [];
 
       days.push({
         dateStr,
@@ -167,6 +203,7 @@ export default function HistoryPage() {
         completedSessionsCount: daySessions.filter((s) => s.status === 'completed').length,
         scheduledSessionsCount: daySessions.filter((s) => s.status === 'scheduled' || s.status === 'in_progress').length,
         testsCount: dayTests.length,
+        rockSessionsCount: dayRock.length,
       });
     }
 
@@ -176,6 +213,7 @@ export default function HistoryPage() {
       const dateStr = getLocalDateIsoString(thisDate);
       const daySessions = sessionsByDay.get(dateStr) || [];
       const dayTests = testsByDay.get(dateStr) || [];
+      const dayRock = rockSessionsByDay.get(dateStr) || [];
 
       days.push({
         dateStr,
@@ -185,6 +223,7 @@ export default function HistoryPage() {
         completedSessionsCount: daySessions.filter((s) => s.status === 'completed').length,
         scheduledSessionsCount: daySessions.filter((s) => s.status === 'scheduled' || s.status === 'in_progress').length,
         testsCount: dayTests.length,
+        rockSessionsCount: dayRock.length,
       });
     }
 
@@ -195,6 +234,7 @@ export default function HistoryPage() {
       const dateStr = getLocalDateIsoString(nextDate);
       const daySessions = sessionsByDay.get(dateStr) || [];
       const dayTests = testsByDay.get(dateStr) || [];
+      const dayRock = rockSessionsByDay.get(dateStr) || [];
 
       days.push({
         dateStr,
@@ -204,13 +244,14 @@ export default function HistoryPage() {
         completedSessionsCount: daySessions.filter((s) => s.status === 'completed').length,
         scheduledSessionsCount: daySessions.filter((s) => s.status === 'scheduled' || s.status === 'in_progress').length,
         testsCount: dayTests.length,
+        rockSessionsCount: dayRock.length,
       });
     }
 
     return days;
-  }, [currentYear, currentMonth, sessionsByDay, testsByDay, todayIso]);
+  }, [currentYear, currentMonth, sessionsByDay, testsByDay, rockSessionsByDay, todayIso]);
 
-  // Sesiones y tests del día actualmente seleccionado
+  // Sesiones, tests y roca del día actualmente seleccionado
   const selectedDaySessions = useMemo(() => {
     return sessionsByDay.get(selectedDateStr) || [];
   }, [sessionsByDay, selectedDateStr]);
@@ -218,6 +259,10 @@ export default function HistoryPage() {
   const selectedDayTests = useMemo(() => {
     return testsByDay.get(selectedDateStr) || [];
   }, [testsByDay, selectedDateStr]);
+
+  const selectedDayRockSessions = useMemo(() => {
+    return rockSessionsByDay.get(selectedDateStr) || [];
+  }, [rockSessionsByDay, selectedDateStr]);
 
   const selectedDateFormatted = useMemo(() => {
     const [year, month, day] = selectedDateStr.split('-').map(Number);
@@ -439,6 +484,7 @@ export default function HistoryPage() {
                 const hasCompleted = d.completedSessionsCount > 0;
                 const hasScheduled = d.scheduledSessionsCount > 0;
                 const hasTests = d.testsCount > 0;
+                const hasRock = d.rockSessionsCount > 0;
 
                 return (
                   <button
@@ -489,6 +535,12 @@ export default function HistoryPage() {
                           title="Test físico realizado"
                         />
                       )}
+                      {hasRock && (
+                        <span
+                          className="w-2 h-2 rounded-full bg-amber-500"
+                          title="Sesión de roca realizada"
+                        />
+                      )}
                     </div>
                   </button>
                 );
@@ -509,6 +561,10 @@ export default function HistoryPage() {
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
                 <span>Test físico</span>
               </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <span>Sesión de roca</span>
+              </div>
             </div>
           </div>
 
@@ -524,11 +580,17 @@ export default function HistoryPage() {
                 </h3>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Link href={`/workouts/new?date=${selectedDateStr}`}>
                   <Button variant="outline" size="sm">
                     <Plus className="w-3.5 h-3.5 mr-1" />
                     Planificar Sesión
+                  </Button>
+                </Link>
+                <Link href={`/rock/new?date=${selectedDateStr}`}>
+                  <Button variant="outline" size="sm" className="border-amber-500/40 text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20">
+                    <Mountain className="w-3.5 h-3.5 mr-1 text-amber-600" />
+                    Registrar Roca
                   </Button>
                 </Link>
                 <Link href={`/tests/new?date=${selectedDateStr}`}>
@@ -738,6 +800,60 @@ export default function HistoryPage() {
                 </div>
               )}
             </div>
+
+            {/* Lista de Sesiones de Roca del Día */}
+            <div className="space-y-3">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-graphite-700 dark:text-graphite-300 flex items-center gap-1.5">
+                <Mountain className="w-4 h-4 text-amber-600" />
+                Sesiones de Roca ({selectedDayRockSessions.length})
+              </h4>
+
+              {selectedDayRockSessions.length > 0 ? (
+                <div className="space-y-2.5">
+                  {selectedDayRockSessions.map((rock) => (
+                    <div
+                      key={rock.id}
+                      className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 flex flex-col sm:flex-row sm:items-start justify-between gap-3"
+                    >
+                      <div className="space-y-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h5 className="font-bold text-base text-graphite-900 dark:text-white">
+                            {rock.title}
+                          </h5>
+                          {rock.rating && (
+                            <span className="text-[10px] font-bold bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 px-2.5 py-0.5 rounded-md">
+                              Valoración: {rock.rating}/10
+                            </span>
+                          )}
+                        </div>
+
+                        {rock.notes && (
+                          <p className="text-xs text-graphite-700 dark:text-graphite-300 whitespace-pre-line">
+                            {rock.notes}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setDeletingRockSession({ id: rock.id, title: rock.title })}
+                          title="Eliminar sesión de roca"
+                          aria-label="Eliminar sesión de roca"
+                          className="text-xs font-bold text-red-600 hover:text-red-700 p-2 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors flex items-center justify-center"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-chalk-100/60 dark:bg-graphite-850/40 text-xs text-graphite-500">
+                  Sin sesiones de roca registradas en este día.
+                </div>
+              )}
+            </div>
           </div>
         </>
       ) : (
@@ -867,6 +983,23 @@ export default function HistoryPage() {
         session={completingSession}
         onSave={handleRetroComplete}
         onCancel={() => setCompletingSession(null)}
+      />
+
+      {/* Modal de Confirmación para Eliminar Sesión de Roca */}
+      <ConfirmModal
+        isOpen={Boolean(deletingRockSession)}
+        onClose={() => !isDeletingRockSession && setDeletingRockSession(null)}
+        onConfirm={handleConfirmDeleteRockSession}
+        title="¿Eliminar sesión de roca?"
+        description={
+          deletingRockSession
+            ? `¿Estás seguro de que deseas eliminar la sesión de roca "${deletingRockSession.title}"? Esta acción no se puede deshacer.`
+            : ''
+        }
+        confirmText="Eliminar Sesión"
+        cancelText="Cancelar"
+        variant="danger"
+        isLoading={isDeletingRockSession}
       />
     </div>
   );
