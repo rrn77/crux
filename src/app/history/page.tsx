@@ -516,30 +516,30 @@ export default function HistoryPage() {
                     </span>
 
                     {/* Indicadores de Actividad */}
-                    <div className="flex items-center gap-1 mt-1 flex-wrap justify-center">
-                      {hasCompleted && (
+                    <div className="flex items-center gap-0.5 mt-1 flex-wrap justify-center min-h-[16px]">
+                      {(hasCompleted || hasScheduled) && (
                         <span
-                          className="w-2 h-2 rounded-full bg-moss"
-                          title="Entrenamiento completado"
-                        />
-                      )}
-                      {hasScheduled && (
-                        <span
-                          className="w-2 h-2 rounded-full bg-terracotta"
-                          title="Entrenamiento planificado"
-                        />
+                          className="text-xs sm:text-sm leading-none select-none"
+                          title={hasCompleted ? 'Entrenamiento completado' : 'Entrenamiento planificado'}
+                        >
+                          💪
+                        </span>
                       )}
                       {hasTests && (
                         <span
-                          className="w-2 h-2 rounded-full bg-blue-500"
+                          className="text-xs sm:text-sm leading-none select-none"
                           title="Test físico realizado"
-                        />
+                        >
+                          📈
+                        </span>
                       )}
                       {hasRock && (
                         <span
-                          className="w-2 h-2 rounded-full bg-amber-500"
+                          className="text-xs sm:text-sm leading-none select-none"
                           title="Sesión de roca realizada"
-                        />
+                        >
+                          🏔️
+                        </span>
                       )}
                     </div>
                   </button>
@@ -547,22 +547,18 @@ export default function HistoryPage() {
               })}
             </div>
 
-            {/* Leyenda de Colores */}
-            <div className="pt-2 border-t border-chalk-200 dark:border-graphite-800 flex items-center justify-center gap-4 text-xs text-graphite-500 flex-wrap">
+            {/* Leyenda de Actividades */}
+            <div className="pt-2 border-t border-chalk-200 dark:border-graphite-800 flex items-center justify-center gap-4 text-xs text-graphite-600 dark:text-graphite-400 flex-wrap font-medium">
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-moss" />
-                <span>Entreno completado</span>
+                <span className="text-sm">💪</span>
+                <span>Entrenamiento</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-terracotta" />
-                <span>Sesión planificada</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                <span className="text-sm">📈</span>
                 <span>Test físico</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <span className="text-sm">🏔️</span>
                 <span>Sesión de roca</span>
               </div>
             </div>

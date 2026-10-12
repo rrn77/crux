@@ -395,18 +395,21 @@ export default function HomePage() {
                   {day.dayNumber}
                 </span>
 
-                <div className="h-2 flex items-center justify-center gap-0.5">
-                  {hasCompleted && (
-                    <span className="w-2 h-2 rounded-full bg-moss" title="Entrenamiento completado" />
-                  )}
-                  {hasScheduled && !hasCompleted && (
-                    <span className="w-2 h-2 rounded-full bg-terracotta" title="Sesión planificada" />
+                <div className="min-h-[16px] flex items-center justify-center gap-0.5">
+                  {(hasCompleted || hasScheduled) && (
+                    <span className="text-[11px] leading-none select-none" title={hasCompleted ? 'Entrenamiento completado' : 'Sesión planificada'}>
+                      💪
+                    </span>
                   )}
                   {day.hasTest && (
-                    <span className="w-2 h-2 rounded-full bg-blue-500" title="Test físico" />
+                    <span className="text-[11px] leading-none select-none" title="Test físico">
+                      📈
+                    </span>
                   )}
                   {day.hasRock && (
-                    <span className="w-2 h-2 rounded-full bg-amber-500" title="Sesión de roca" />
+                    <span className="text-[11px] leading-none select-none" title="Sesión de roca">
+                      🏔️
+                    </span>
                   )}
                   {!hasCompleted && !hasScheduled && !day.hasTest && !day.hasRock && (
                     <span className="w-1 h-1 rounded-full bg-chalk-300 dark:bg-graphite-700" />
