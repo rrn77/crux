@@ -661,6 +661,21 @@ export default function HistoryPage() {
                             &ldquo;{session.notes}&rdquo;
                           </p>
                         )}
+
+                        {session.blocks && session.blocks.length > 0 && (
+                          <div className="bg-chalk-100/80 dark:bg-graphite-800/80 rounded-xl p-2.5 space-y-1 text-xs mt-2 border border-chalk-200 dark:border-graphite-750">
+                            {session.blocks.map((b, idx) => (
+                              <div key={b.id || idx} className="flex items-center justify-between text-graphite-700 dark:text-graphite-300">
+                                <span className="font-semibold truncate">
+                                  {idx + 1}. {b.title}
+                                </span>
+                                <span className="text-[11px] font-mono font-medium text-terracotta dark:text-terracotta-400 shrink-0 ml-2">
+                                  {formatBlockSummary(b)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
@@ -911,6 +926,21 @@ export default function HistoryPage() {
                           <StickyNote className="w-3.5 h-3.5 text-terracotta shrink-0 mt-0.5" />
                           <span>{session.notes}</span>
                         </p>
+                      )}
+
+                      {session.blocks && session.blocks.length > 0 && (
+                        <div className="bg-chalk-100/80 dark:bg-graphite-800/80 rounded-xl p-2.5 space-y-1 text-xs mt-2 border border-chalk-200 dark:border-graphite-750">
+                          {session.blocks.map((b, idx) => (
+                            <div key={b.id || idx} className="flex items-center justify-between text-graphite-700 dark:text-graphite-300">
+                              <span className="font-semibold truncate">
+                                {idx + 1}. {b.title}
+                              </span>
+                              <span className="text-[11px] font-mono font-medium text-terracotta dark:text-terracotta-400 shrink-0 ml-2">
+                                {formatBlockSummary(b)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </Link>
 

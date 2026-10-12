@@ -14,10 +14,16 @@ import {
   Layers,
   CheckCircle2,
   StickyNote,
+  Target,
 } from 'lucide-react';
 import { useWorkoutStore } from '@/lib/store/workoutStore';
 import { useActiveWorkoutStore } from '@/lib/store/activeWorkoutStore';
-import { formatDurationHuman, formatSecondsToTime, formatBlockSummary } from '@/lib/timer/durationHelper';
+import {
+  formatDurationHuman,
+  formatSecondsToTime,
+  formatBlockSummary,
+  BLOCK_TYPE_CONFIG,
+} from '@/lib/timer/durationHelper';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -150,67 +156,168 @@ export default function HistoryDetailPage() {
         </div>
       </div>
 
-      {/* Desglose por Bloques Ejecutados */}
+      {/* Desglose de Ejercicios y Prescripción */}
       <div className="space-y-3">
-        <h2 className="font-black text-lg text-graphite-900 dark:text-graphite-100 flex items-center gap-2">
-          <Layers className="w-5 h-5 text-terracotta" />
-          Desglose de Bloques Realizados ({session.logs.length})
-        </h2>
+        <div className="flex items-center justify-between">
+          <h2 className="font-black text-lg text-graphite-900 dark:text-graphite-100 flex items-center gap-2">
+            <Layers className="w-5 h-5 text-terracotta" />
+            Ejercicios y Prescripción ({session.blocks?.length || session.logs?.length || 0})
+          </h2>
+        </div>
 
         <div className="space-y-3">
-          {session.logs.map((log, idx) => (
-            <div
-              key={log.id || idx}
-              className="bg-white dark:bg-graphite-900 p-4 rounded-2xl border border-chalk-300 dark:border-graphite-800 shadow-sm space-y-2"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-xs bg-chalk-200 dark:bg-graphite-800 px-2 py-0.5 rounded text-graphite-600 dark:text-graphite-300">
-                      #{idx + 1}
+          {(session.blocks && session.blocks.length > 0
+            ? session.blocks.map((block, idx) => {
+                const log = session.logs?.find(
+                  (l) =>
+                    (l.blockId && l.blockId === block.id) ||
+                    l.position === idx ||
+                    l.blockTitle?.toLowerCase().trim() === block.title?.toLowerCase().trim()
+                );
+                return {
+                  block,
+                  log,
+                  title: block.title,
+                  type: block.type,
+                  index: idx,
+                };
+              })
+            : (session.logs || []).map((log, idx) => ({
+                block: undefined,
+                log,
+                title: log.blockTitle,
+                type: log.blockType,
+                index: idx,
+              }))
+          ).map((item) => {
+            const blockConfig = BLOCK_TYPE_CONFIG[item.type] || BLOCK_TYPE_CONFIG.free;
+            const IconComponent = blockConfig.icon;
+            const log = item.log;
+            const block = item.block;
+
+            const isCompleted = log ? log.status === 'completed' : session.status === 'completed';
+            const isSkipped = log?.status === 'skipped';
+            const isPartial = log?.status === 'in_progress';
+
+            return (
+              <div
+                key={block?.id || log?.id || item.index}
+                className="bg-white dark:bg-graphite-900 p-4 sm:p-5 rounded-3xl border border-chalk-300 dark:border-graphite-800 shadow-sm space-y-3"
+              >
+                {/* Cabecera del Ejercicio */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                    <span className="font-mono font-bold text-xs bg-chalk-200 dark:bg-graphite-800 px-2 py-0.5 rounded-md text-graphite-600 dark:text-graphite-300 shrink-0">
+                      #{item.index + 1}
                     </span>
-                    <h3 className="font-bold text-sm text-graphite-900 dark:text-graphite-100">
-                      {log.blockTitle}
+                    <h3 className="font-bold text-base text-graphite-900 dark:text-graphite-100">
+                      {item.title}
                     </h3>
+                    <Badge variant={blockConfig.variant} size="sm">
+                      <IconComponent className="w-3 h-3" />
+                      {blockConfig.label}
+                    </Badge>
                   </div>
+
+                  {/* Estado de ejecución */}
+                  {isCompleted ? (
+                    <Badge variant="moss" size="sm">
+                      <CheckCircle2 className="w-3 h-3" />
+                      Completado
+                    </Badge>
+                  ) : isSkipped ? (
+                    <Badge variant="neutral" size="sm">
+                      Omitido
+                    </Badge>
+                  ) : isPartial ? (
+                    <Badge variant="warning" size="sm">
+                      Parcial
+                    </Badge>
+                  ) : (
+                    <Badge variant="neutral" size="sm">
+                      Registrado
+                    </Badge>
+                  )}
                 </div>
 
-                <Badge variant={log.status === 'completed' ? 'moss' : 'neutral'} size="sm">
-                  <CheckCircle2 className="w-3 h-3" />
-                  {log.status === 'completed' ? 'Completado' : 'Parcial'}
-                </Badge>
+                {/* ¿Qué había que hacer? (Prescripción y Plan del día) */}
+                <div className="bg-chalk-100/80 dark:bg-graphite-850 p-3 sm:p-3.5 rounded-2xl border border-chalk-200 dark:border-graphite-750 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-graphite-600 dark:text-graphite-400 flex items-center gap-1.5">
+                      <Target className="w-3.5 h-3.5 text-terracotta" />
+                      ¿Qué tocaba hacer? (Objetivo prescrito)
+                    </span>
+                    {(block?.load || block?.target) && (
+                      <span className="bg-terracotta-50 dark:bg-terracotta-950/40 text-terracotta px-2.5 py-0.5 rounded-lg text-xs font-bold border border-terracotta/20">
+                        {block.load || block.target}
+                      </span>
+                    )}
+                  </div>
+
+                  <p className="text-sm font-black text-terracotta dark:text-terracotta-400">
+                    {block
+                      ? formatBlockSummary(block)
+                      : log?.targetSets
+                      ? `${log.targetSets} series prescritas`
+                      : 'Ejercicio libre'}
+                  </p>
+
+                  {block?.notes && (
+                    <div className="pt-0.5">
+                      <span className="text-xs font-semibold text-graphite-500">Indicaciones: </span>
+                      <span className="text-xs text-graphite-700 dark:text-graphite-300 italic">
+                        &ldquo;{block.notes}&rdquo;
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* ¿Cómo se ejecutó? (Tiempos y Series reales) */}
+                {log && (
+                  <div className="space-y-2 pt-0.5">
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="bg-chalk-50 dark:bg-graphite-800/60 p-2.5 rounded-xl text-center border border-chalk-200 dark:border-graphite-750">
+                        <div className="font-mono font-black text-sm text-graphite-900 dark:text-graphite-100">
+                          {log.completedSets} / {log.targetSets || block?.sets || log.completedSets}
+                        </div>
+                        <div className="text-[10px] text-graphite-500 uppercase font-semibold">Series hechas</div>
+                      </div>
+
+                      <div className="bg-chalk-50 dark:bg-graphite-800/60 p-2.5 rounded-xl text-center border border-chalk-200 dark:border-graphite-750">
+                        <div className="font-mono font-black text-sm text-terracotta">
+                          {formatSecondsToTime(log.actualWorkSeconds || 0)}
+                        </div>
+                        <div className="text-[10px] text-graphite-500 uppercase font-semibold">Trabajo real</div>
+                      </div>
+
+                      <div className="bg-chalk-50 dark:bg-graphite-800/60 p-2.5 rounded-xl text-center border border-chalk-200 dark:border-graphite-750">
+                        <div className="font-mono font-black text-sm text-moss">
+                          {formatSecondsToTime(log.actualRestSeconds || 0)}
+                        </div>
+                        <div className="text-[10px] text-graphite-500 uppercase font-semibold">Descanso real</div>
+                      </div>
+                    </div>
+
+                    {/* Sensaciones durante el entreno o RPE */}
+                    {(log.rpe || log.notes) && (
+                      <div className="flex items-center gap-2 flex-wrap pt-0.5 text-xs">
+                        {log.rpe && (
+                          <span className="font-bold bg-chalk-200 dark:bg-graphite-800 text-graphite-700 dark:text-graphite-300 px-2 py-0.5 rounded-md">
+                            RPE {log.rpe}/10
+                          </span>
+                        )}
+                        {log.notes && (
+                          <p className="text-graphite-600 dark:text-graphite-400 bg-chalk-50 dark:bg-graphite-800/40 px-2.5 py-1.5 rounded-xl italic flex-1 min-w-[200px]">
+                            Sensaciones: &ldquo;{log.notes}&rdquo;
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-
-              <div className="grid grid-cols-3 gap-2 pt-1 text-xs">
-                <div className="bg-chalk-100 dark:bg-graphite-850 p-2 rounded-xl text-center">
-                  <div className="font-mono font-bold text-graphite-900 dark:text-graphite-100">
-                    {log.completedSets} / {log.targetSets || log.completedSets}
-                  </div>
-                  <div className="text-[10px] text-graphite-500 uppercase font-semibold">Series</div>
-                </div>
-
-                <div className="bg-chalk-100 dark:bg-graphite-850 p-2 rounded-xl text-center">
-                  <div className="font-mono font-bold text-terracotta">
-                    {formatSecondsToTime(log.actualWorkSeconds || 0)}
-                  </div>
-                  <div className="text-[10px] text-graphite-500 uppercase font-semibold">Trabajo</div>
-                </div>
-
-                <div className="bg-chalk-100 dark:bg-graphite-850 p-2 rounded-xl text-center">
-                  <div className="font-mono font-bold text-moss">
-                    {formatSecondsToTime(log.actualRestSeconds || 0)}
-                  </div>
-                  <div className="text-[10px] text-graphite-500 uppercase font-semibold">Descanso</div>
-                </div>
-              </div>
-
-              {log.notes && (
-                <p className="text-xs text-graphite-600 dark:text-graphite-400 bg-chalk-100 dark:bg-graphite-800/60 p-2 rounded-xl italic">
-                  &ldquo;{log.notes}&rdquo;
-                </p>
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
