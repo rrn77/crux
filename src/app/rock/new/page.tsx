@@ -26,6 +26,7 @@ function NewRockSessionForm() {
   const [notes, setNotes] = useState('');
   const [rating, setRating] = useState<number | null>(null);
   const [titleError, setTitleError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   // Títulos únicos de sesiones de roca anteriores para sugerencias
@@ -48,6 +49,7 @@ function NewRockSessionForm() {
     }
 
     setIsSaving(true);
+    setSubmitError(null);
     try {
       await addRockSession({
         title: trimmedTitle,
@@ -56,8 +58,14 @@ function NewRockSessionForm() {
         rating: rating || undefined,
       });
       router.push('/');
-    } catch (err) {
-      console.warn('Error al guardar sesión de roca:', err);
+    } catch (err: unknown) {
+      console.error('Error al guardar sesión de roca:', err);
+      const msg = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : 'Error inesperado';
+      if (msg.includes('rock_sessions') || msg.includes('relation') || (err && typeof err === 'object' && 'code' in err && (err as { code: unknown }).code === '42P01')) {
+        setSubmitError('La tabla "rock_sessions" no existe en Supabase. Debes ejecutar el script SQL en el panel de tu proyecto Supabase (SQL Editor).');
+      } else {
+        setSubmitError(`No se pudo guardar la sesión: ${msg}`);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -124,6 +132,16 @@ function NewRockSessionForm() {
 
       {/* Formulario */}
       <form onSubmit={handleSubmit} className="space-y-4 bg-white dark:bg-graphite-900 p-5 rounded-3xl border border-chalk-300 dark:border-graphite-800 shadow-sm">
+        {submitError && (
+          <div className="p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 rounded-2xl text-xs text-red-700 dark:text-red-300 font-medium space-y-1">
+            <div className="font-bold flex items-center gap-1.5 text-sm">
+              <span>⚠️</span>
+              <span>Error al guardar en Supabase</span>
+            </div>
+            <p>{submitError}</p>
+          </div>
+        )}
+
         <Input
           label="Zona o Título"
           placeholder="Ej: El Chorro, Siurana, Rocódromo X..."

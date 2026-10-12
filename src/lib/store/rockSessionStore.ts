@@ -41,6 +41,17 @@ function mapRemoteRockSession(r: Record<string, unknown>): RockSession {
   };
 }
 
+async function getEffectiveUserId(currentUserId: string | null): Promise<string | null> {
+  if (currentUserId) return currentUserId;
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user?.id || null;
+  } catch {
+    return null;
+  }
+}
+
 export const useRockSessionStore = create<RockSessionStore>()((set, get) => ({
   rockSessions: [],
   userId: null,
@@ -48,10 +59,17 @@ export const useRockSessionStore = create<RockSessionStore>()((set, get) => ({
 
   setUserId: (userId) => set({ userId }),
 
-  fetchAll: async (userId) => {
+  fetchAll: async (userIdParam?: string) => {
     if (!supabase) return;
     set({ isLoading: true });
     try {
+      const userId = userIdParam || (await getEffectiveUserId(get().userId));
+      if (!userId) {
+        set({ isLoading: false });
+        return;
+      }
+      if (!get().userId) set({ userId });
+
       const { data, error } = await supabase
         .from('rock_sessions')
         .select('*')
@@ -67,29 +85,31 @@ export const useRockSessionStore = create<RockSessionStore>()((set, get) => ({
   },
 
   addRockSession: async (data) => {
-    const userId = get().userId;
+    const userId = await getEffectiveUserId(get().userId);
+    if (userId && !get().userId) set({ userId });
+
     const id = generateUUID();
     const newSession: RockSession = {
       ...data,
       id,
+      userId: userId || undefined,
       createdAt: new Date().toISOString(),
     };
 
     set((state) => ({ rockSessions: [newSession, ...state.rockSessions] }));
 
     if (supabase && userId) {
-      try {
-        const { error } = await supabase.from('rock_sessions').insert({
-          id,
-          user_id: userId,
-          title: newSession.title,
-          session_date: newSession.date,
-          notes: newSession.notes,
-          rating: newSession.rating,
-        });
-        if (error) throw error;
-      } catch (err) {
-        console.warn('Error al guardar sesión de roca en Supabase:', err);
+      const { error } = await supabase.from('rock_sessions').insert({
+        id,
+        user_id: userId,
+        title: newSession.title,
+        session_date: newSession.date,
+        notes: newSession.notes,
+        rating: newSession.rating,
+      });
+      if (error) {
+        console.error('Error al guardar sesión de roca en Supabase:', error);
+        throw error;
       }
     }
 
