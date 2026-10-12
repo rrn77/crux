@@ -517,12 +517,20 @@ export default function HistoryPage() {
 
                     {/* Indicadores de Actividad */}
                     <div className="flex items-center gap-0.5 mt-1 flex-wrap justify-center min-h-[16px]">
-                      {(hasCompleted || hasScheduled) && (
+                      {hasCompleted && (
                         <span
                           className="text-xs sm:text-sm leading-none select-none"
-                          title={hasCompleted ? 'Entrenamiento completado' : 'Entrenamiento planificado'}
+                          title="Entrenamiento completado"
                         >
                           💪
+                        </span>
+                      )}
+                      {hasScheduled && !hasCompleted && (
+                        <span
+                          className="text-xs sm:text-sm leading-none select-none"
+                          title="Entrenamiento planificado"
+                        >
+                          🏋️
                         </span>
                       )}
                       {hasTests && (
@@ -551,7 +559,11 @@ export default function HistoryPage() {
             <div className="pt-2 border-t border-chalk-200 dark:border-graphite-800 flex items-center justify-center gap-4 text-xs text-graphite-600 dark:text-graphite-400 flex-wrap font-medium">
               <div className="flex items-center gap-1.5">
                 <span className="text-sm">💪</span>
-                <span>Entrenamiento</span>
+                <span>Entreno completado</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">🏋️</span>
+                <span>Sesión planificada</span>
               </div>
               <div className="flex items-center gap-1.5">
                 <span className="text-sm">📈</span>

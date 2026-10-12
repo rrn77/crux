@@ -396,9 +396,14 @@ export default function HomePage() {
                 </span>
 
                 <div className="min-h-[16px] flex items-center justify-center gap-0.5">
-                  {(hasCompleted || hasScheduled) && (
-                    <span className="text-[11px] leading-none select-none" title={hasCompleted ? 'Entrenamiento completado' : 'Sesión planificada'}>
+                  {hasCompleted && (
+                    <span className="text-[11px] leading-none select-none" title="Entrenamiento completado">
                       💪
+                    </span>
+                  )}
+                  {hasScheduled && !hasCompleted && (
+                    <span className="text-[11px] leading-none select-none" title="Sesión planificada">
+                      🏋️
                     </span>
                   )}
                   {day.hasTest && (
