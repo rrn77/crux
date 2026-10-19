@@ -10,6 +10,8 @@ const NOTIFICATION_TAG = 'crux-workout-timer';
 
 function phaseLabel(phase: string): string {
   switch (phase) {
+    case 'preparation':
+      return 'Preparación';
     case 'work':
       return 'Trabajo';
     case 'rest':

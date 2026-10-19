@@ -1,6 +1,6 @@
 export type BlockType = 'intervals' | 'reps' | 'attempts' | 'problems' | 'free';
 
-export type TimerPhase = 'idle' | 'work' | 'rest' | 'blockCompleted' | 'sessionCompleted';
+export type TimerPhase = 'idle' | 'preparation' | 'work' | 'rest' | 'blockCompleted' | 'sessionCompleted';
 
 export interface WorkoutBlock {
   id: string;

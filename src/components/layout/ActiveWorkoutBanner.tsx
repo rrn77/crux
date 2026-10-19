@@ -34,7 +34,7 @@ export function ActiveWorkoutBanner() {
               {session.title}
             </p>
             <p className="text-[11px] text-white/90 truncate">
-              {currentBlock ? currentBlock.title : 'Entrenamiento activo'} &bull; {timerState.phase === 'work' ? 'Trabajo' : timerState.phase === 'rest' ? 'Descanso' : 'Pausa'}
+              {currentBlock ? currentBlock.title : 'Entrenamiento activo'} &bull; {timerState.phase === 'preparation' ? 'Preparación' : timerState.phase === 'work' ? 'Trabajo' : timerState.phase === 'rest' ? 'Descanso' : 'Pausa'}
             </p>
           </div>
         </div>

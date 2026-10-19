@@ -129,6 +129,25 @@ test('Pausar y reanudar con timestamps', () => {
   assert.strictEqual(resumed.phaseTargetEnd, startMs + 100000 + 150000);
 });
 
+test('Preparación de 5 segundos para ejercicios temporizados', () => {
+  const block = { id: '1', position: 0, title: 'ULAC', type: 'intervals', sets: 2, workDurationSeconds: 180, restDurationSeconds: 60 };
+  const startMs = 460000;
+  const prep = startTimerPhase(initializeBlockTimer(block), block, undefined, startMs);
+  assert.strictEqual(prep.phase, 'preparation');
+  assert.strictEqual(prep.secondsRemaining, 5);
+  assert.strictEqual(prep.phaseDurationSeconds, 5);
+
+  const trans = transitionOnTimerExpired(prep, block, startMs + 5000);
+  assert.strictEqual(trans.nextState.phase, 'work');
+  assert.strictEqual(trans.nextState.secondsRemaining, 180);
+  assert.strictEqual(trans.event, 'work_started');
+  assert.strictEqual(trans.soundToPlay, 'work');
+
+  const skipped = skipCurrentPhase(prep, block, startMs + 2000);
+  assert.strictEqual(skipped.nextState.phase, 'work');
+  assert.strictEqual(skipped.nextState.secondsRemaining, 180);
+});
+
 // 3. Tests de Recuperación de Segundo Plano
 test('Recuperación precisa tras bloqueo de pantalla', () => {
   const block = { id: '1', position: 0, title: 'Suspensiones 20mm', type: 'intervals', sets: 6, workDurationSeconds: 7, restDurationSeconds: 180 };

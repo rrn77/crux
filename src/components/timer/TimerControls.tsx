@@ -162,7 +162,7 @@ export function TimerControls({
             className="flex items-center justify-center gap-1.5 font-bold min-h-[52px] border-chalk-300 dark:border-graphite-700 bg-white dark:bg-graphite-850 text-graphite-900 dark:text-graphite-100"
           >
             <FastForward className="w-5 h-5 text-terracotta" />
-            {phase === 'work' ? 'Saltar a Descanso' : 'Siguiente Serie'}
+            {phase === 'preparation' ? 'Empezar ya' : phase === 'work' ? 'Saltar a Descanso' : 'Siguiente Serie'}
           </Button>
 
           <Button

@@ -33,7 +33,7 @@ interface ActiveWorkoutStore {
     existingSessionId?: string,
     scheduledDate?: string
   ) => void;
-  startTimer: (phaseOverride?: 'work' | 'rest') => void;
+  startTimer: (phaseOverride?: 'work' | 'rest' | 'preparation') => void;
   pauseTimer: () => void;
   resumeTimer: () => void;
   tick: () => void;
@@ -132,15 +132,28 @@ export const useActiveWorkoutStore = create<ActiveWorkoutStore>()(
         if (!session || !session.blocks[currentBlockIndex]) return;
 
         const currentBlock = session.blocks[currentBlockIndex];
-        const nextState = startTimerPhase(timerState, currentBlock, phaseOverride);
+        // Para bloques temporizados (intervals), al iniciar serie desde reposo (idle)
+        // proporcionamos 5 segundos de preparación.
+        let targetPhase = phaseOverride;
+        if (
+          currentBlock.type === 'intervals' &&
+          (timerState.phase === 'idle' || !timerState.isRunning) &&
+          (!targetPhase || targetPhase === 'work')
+        ) {
+          targetPhase = 'preparation';
+        }
+
+        const nextState = startTimerPhase(timerState, currentBlock, targetPhase);
 
         const settings = useSettingsStore.getState();
         if (settings.soundEnabled) {
-          if (nextState.phase === 'work') audioFeedback.playWorkStart();
+          if (nextState.phase === 'preparation') audioFeedback.playCountdown();
+          else if (nextState.phase === 'work') audioFeedback.playWorkStart();
           else if (nextState.phase === 'rest') audioFeedback.playRestStart();
         }
         if (settings.vibrationEnabled) {
-          if (nextState.phase === 'work') audioFeedback.vibrateWork();
+          if (nextState.phase === 'preparation') audioFeedback.vibrateCountdown();
+          else if (nextState.phase === 'work') audioFeedback.vibrateWork();
           else if (nextState.phase === 'rest') audioFeedback.vibrateRest();
         }
 

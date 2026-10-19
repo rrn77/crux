@@ -72,19 +72,23 @@ export function initializeBlockTimer(block: WorkoutBlock): TimerEngineState {
   };
 }
 
+export const PREPARATION_DURATION_SECONDS = 5;
+
 /**
- * Inicia la fase de trabajo o descanso para el bloque actual
+ * Inicia la fase de trabajo, preparación o descanso para el bloque actual
  */
 export function startTimerPhase(
   currentState: TimerEngineState,
   block: WorkoutBlock,
-  phaseOverride?: 'work' | 'rest',
+  phaseOverride?: 'work' | 'rest' | 'preparation',
   now: number = Date.now()
 ): TimerEngineState {
-  let targetPhase: TimerPhase = phaseOverride || (block.type === 'intervals' ? 'work' : 'rest');
+  let targetPhase: TimerPhase = phaseOverride || (block.type === 'intervals' ? 'preparation' : 'rest');
   let duration = 0;
 
-  if (targetPhase === 'work') {
+  if (targetPhase === 'preparation') {
+    duration = PREPARATION_DURATION_SECONDS;
+  } else if (targetPhase === 'work') {
     duration = block.workDurationSeconds ?? 30;
   } else if (targetPhase === 'rest') {
     duration = block.restDurationSeconds ?? 60;
@@ -194,6 +198,26 @@ export function transitionOnTimerExpired(
   now: number = Date.now()
 ): TransitionResult {
   const { totalSets, totalProblems, totalAttempts } = getBlockTargetUnits(block);
+
+  if (state.phase === 'preparation') {
+    // Preparación (5s) finalizada -> Pasar automáticamente a TRABAJO
+    const workDuration = block.workDurationSeconds ?? 30;
+
+    return {
+      nextState: {
+        ...state,
+        phase: 'work',
+        phaseDurationSeconds: workDuration,
+        phaseStartTime: now,
+        phaseTargetEnd: now + workDuration * 1000,
+        secondsRemaining: workDuration,
+        isRunning: true,
+        isPaused: false,
+      },
+      event: 'work_started',
+      soundToPlay: 'work',
+    };
+  }
 
   if (state.phase === 'work') {
     // Trabajo completado -> Pasar automáticamente a DESCANSO

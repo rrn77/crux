@@ -4,7 +4,7 @@ import React from 'react';
 import { TimerPhase, WorkoutBlock } from '@/lib/types';
 import { formatSecondsToTime } from '@/lib/timer/durationHelper';
 import { getBlockTargetUnits } from '@/lib/timer/timerEngine';
-import { Flame, Coffee, CheckCircle2, Pause } from 'lucide-react';
+import { Flame, Coffee, CheckCircle2, Pause, Clock } from 'lucide-react';
 
 interface TimerDisplayProps {
   block: WorkoutBlock;
@@ -43,7 +43,13 @@ export function TimerDisplay({
   let strokeColor = '#636E7D';
   let PhaseIcon = Flame;
 
-  if (phase === 'work') {
+  if (phase === 'preparation') {
+    phaseLabel = 'PREPARACIÓN';
+    phaseColor = 'text-white';
+    phaseBg = 'bg-amber-500 shadow-lg shadow-amber-500/30 animate-pulse';
+    strokeColor = '#F59E0B';
+    PhaseIcon = Clock;
+  } else if (phase === 'work') {
     phaseLabel = 'TRABAJO ACTIVO';
     phaseColor = 'text-white';
     phaseBg = 'bg-terracotta shadow-lg shadow-terracotta/30 animate-pulse-fast';

@@ -149,4 +149,44 @@ describe('Máquina de Estados y Transiciones del Temporizador', () => {
     const minus30 = adjustTimerSeconds(plus15, -30, startMs);
     expect(minus30.secondsRemaining).toBe(165);
   });
+
+  it('Inicia fase de preparación (5s) al iniciar por defecto en bloque de intervalos', () => {
+    const initial = initializeBlockTimer(ulacBlock);
+    const mockNow = 8000000;
+    const started = startTimerPhase(initial, ulacBlock, undefined, mockNow);
+
+    expect(started.phase).toBe('preparation');
+    expect(started.isRunning).toBe(true);
+    expect(started.secondsRemaining).toBe(5);
+    expect(started.phaseDurationSeconds).toBe(5);
+    expect(started.phaseTargetEnd).toBe(mockNow + 5 * 1000);
+  });
+
+  it('Al expirar la preparación (5s) pasa automáticamente a trabajo con sonido de inicio', () => {
+    const initial = initializeBlockTimer(ulacBlock);
+    const mockNow = 8000000;
+    const prep = startTimerPhase(initial, ulacBlock, 'preparation', mockNow);
+
+    const expiredPrep = mockNow + 5 * 1000;
+    const result = transitionOnTimerExpired(prep, ulacBlock, expiredPrep);
+
+    expect(result.nextState.phase).toBe('work');
+    expect(result.nextState.secondsRemaining).toBe(180);
+    expect(result.nextState.phaseDurationSeconds).toBe(180);
+    expect(result.event).toBe('work_started');
+    expect(result.soundToPlay).toBe('work');
+  });
+
+  it('Permite saltar la preparación en 1 toque e iniciar trabajo de inmediato', () => {
+    const initial = initializeBlockTimer(ulacBlock);
+    const mockNow = 8000000;
+    const prep = startTimerPhase(initial, ulacBlock, 'preparation', mockNow);
+
+    const result = skipCurrentPhase(prep, ulacBlock, mockNow + 2000);
+
+    expect(result.nextState.phase).toBe('work');
+    expect(result.nextState.secondsRemaining).toBe(180);
+    expect(result.event).toBe('work_started');
+    expect(result.soundToPlay).toBe('work');
+  });
 });
